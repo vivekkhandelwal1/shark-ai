@@ -55,7 +55,6 @@ python -m sharktank.examples.export_paged_llm_v1 \
 ```
 
 ### Compile to vmfb
-This step fails with [compile error](https://gist.github.com/archana-ramalingam/aa2f26256d768051aa46f4ded5a20e14)
 
 ```bash
 ../iree-build/tools/iree-compile grok-1-q4_1.mlir \
