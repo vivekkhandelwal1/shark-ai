@@ -40,7 +40,7 @@ This command isn't interactive. For a given prompt, it continues to predict next
 
 ```bash
 python -m sharktank.examples.paged_llm_v1  \
-  --gguf-file=/data/grok/grok-1-q4_1.irpa \
+  --irpa-file=/data/grok/grok-1-q4_1.irpa \
   --tokenizer-config-json=/data/grok/tokenizer_config.json \
   "I can assure you that the meaning of life and the universe is none other than"
 ```
