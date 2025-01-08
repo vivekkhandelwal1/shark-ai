@@ -56,16 +56,14 @@ class flash_attention(CustomOp):
 
         torch._check(k_s == v_s, lambda: f"expected matching kv length: {q_d}, {k_d}")
 
-        q_desc.specialize_dims(0, -1)
-        k_desc.specialize_dims(0, -1)
-        v_desc.specialize_dims(0, -1)
-        a_desc.specialize_dims(0)
-        print(q_desc)
-        print(a_desc)
+        q_desc.specialize_dims(0, 1, -1)
+        k_desc.specialize_dims(0, 1, -1)
+        v_desc.specialize_dims(0, 1, -1)
+        a_desc.specialize_dims(0, 1)
 
         # Result 0: Shape batch..., m, n
         ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.float16).specialize_dims(
-            0, 2
+            0, 1, -1
         )
 
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
@@ -74,32 +72,37 @@ class flash_attention(CustomOp):
         v = kb.arg_value(2)
         a = kb.arg_value(3)
         scale = kb.arg_value(4)
+
         q_tensor_type = RankedTensorType(q.type)
         scale_tensor_type = RankedTensorType(scale.type)
         v_tensor_type = RankedTensorType(v.type)
-        a_tensor_type = RankedTensorType(a.type)
 
-        b, l, d = q_tensor_type.shape
-        b, s, e = v_tensor_type.shape
-        l = "?"
-        s = "?"
+        b1, b2, l, d = q_tensor_type.shape
+        _, _, s, e = v_tensor_type.shape
 
+        # Unspecialized dims will be negative
+        l = l if l >= 0 else "?"
+        s = s if s >= 0 else "?"
+        b = str(int(b1) * int(b2))
         i_type_str = str(q_tensor_type.element_type)
         scale_type_str = str(scale_tensor_type.element_type)
         o_type_str = "f16"
 
         kwargs = {
             "b": b,
+            "b1": b1,
+            "b2": b2,
             "l": l,
             "d": d,
             "s": s,
             "e": e,
-            "i_type": i_type_str,
-            "scale_type": scale_type_str,
-            "o_type": o_type_str,
+            "i_dtype": i_type_str,
+            "scale_dtype": scale_type_str,
+            "o_dtype": o_type_str,
         }
+        print(b2)
         template_file = "flash_attention_llm.mlir"
-        target_function_name = f"sharktank_llm_flash_attention_{b}_{d}_{e}_{i_type_str}_{scale_type_str}_{o_type_str}"
+        target_function_name = f"sharktank_llm_flash_attention_{b1}_{b2}_{d}_{e}_{i_type_str}_{scale_type_str}_{o_type_str}"
         target_function = inline_template_function(
             kb,
             template_file,
