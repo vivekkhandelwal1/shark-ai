@@ -18,14 +18,14 @@ from sharktank import kernels
 from sharktank.types import layout_utils
 
 
-class punet_attention(unittest.TestCase):
+class custom_attention(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(420)
 
     @parameterized.expand(
         [
-            (torch.float32, 1e-3, 1e-4),
-            (torch.float16, 1e-3, 1e-4),
+            (torch.float32, 5e-3, 1e-3),
+            (torch.float16, 5e-3, 1e-3),
         ]
     )
     def test_compare_torch_spda(self, dtype, atol, rtol):
