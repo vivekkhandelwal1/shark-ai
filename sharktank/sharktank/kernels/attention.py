@@ -192,8 +192,6 @@ class flash_attention(CustomOp):
             "scale_type": scale_type_str,
             "o_type": o_type_str,
         }
-        print("ARGS:")
-        print(kwargs)
         template_file = "flash_attention.mlir"
         target_function_name = f"sharktank_flash_attention_{l}_{s}_{d}_{e}_{i_type_str}_{scale_type_str}_{o_type_str}"
         target_function = inline_template_function(
