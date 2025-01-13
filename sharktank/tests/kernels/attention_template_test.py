@@ -23,7 +23,6 @@ from sharktank import ops
 class custom_attention(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(420)
-        debugging.flags.use_custom_iree_kernels = True
 
     @parameterized.expand(
         [
@@ -54,7 +53,6 @@ class custom_attention(unittest.TestCase):
 
         else:
             res2 = kernels.flash_attention(q, k, v, scale)
-        # result = ops.scaled_dot_product_attention(q, k, v, a=mask, is_causal=False, scale=scale)
 
         ref = torch.nn.functional.scaled_dot_product_attention(
             q, k, v, mask, scale=scale
@@ -72,7 +70,9 @@ class custom_attention(unittest.TestCase):
         ]
     )
     def test_export_dynamic(self, dtype, static, use_mask):
-        debugging.flags.use_custom_iree_kernels = True
+        ops.attention_impls.register_attention_override_by_name(
+            "masked_flash_attention"
+        )
         cast = False
         if dtype == torch.float8_e4m3fnuz:
             dtype = torch.float32
