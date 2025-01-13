@@ -38,16 +38,17 @@ from .signatures import (
 
 
 def _extract_linear_scale(t):
+    # Returns the qs (quantized tensor value) and scale where appropriate
     if (
         isinstance(t, PlanarQuantizedTensor)
         and isinstance(t.layout, TensorScaledLayout)
-        and t.layout.m is None
+        and t.layout.m is None  # offset must be none or can't fuse scales
     ):
         return t.layout.qs, t.layout.d
     return unbox_tensor(t), None
 
 
-def flash_attention(q, k, v, a, is_causal, scale):
+def prepare_args(q, k, v, scale):
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
@@ -66,8 +67,23 @@ def flash_attention(q, k, v, a, is_causal, scale):
     if v.dtype == torch.float32:
         v = v.to(torch.float16)
 
-    atten = kernels.flash_attention(q, k, v, a, scale)
+    return q, k, v, scale, vscale
 
+
+def flash_attention(q, k, v, a, is_causal, scale):
+    assert not is_causal or is_causal == None, "NYI: is_causal iree custom attention"
+    q, k, v, scale, vscale = prepare_args(q, k, v, scale)
+    atten = kernels.flash_attention(q, k, v, scale)
+    atten = atten * vscale if vscale is not None else atten
+    return atten
+
+
+def masked_flash_attention(q, k, v, a, is_causal, scale):
+    assert not is_causal or is_causal == None, "NYI: is_causal iree custom attention"
+    q, k, v, scale, vscale = prepare_args(q, k, v, scale)
+    if a.dtype == torch.float32:
+        a = a.to(torch.float16)
+    atten = kernels.masked_flash_attention(q, k, v, a, scale)
     atten = atten * vscale if vscale is not None else atten
     return atten
 
@@ -76,3 +92,6 @@ if debugging.flags.use_custom_iree_kernels:
     scaled_dot_product_attention.override(
         PlanarQuantizedTensor, PlanarQuantizedTensor, PlanarQuantizedTensor, NoneType
     )(flash_attention)
+    scaled_dot_product_attention.override(AnyTensor, AnyTensor, AnyTensor, AnyTensor)(
+        masked_flash_attention
+    )

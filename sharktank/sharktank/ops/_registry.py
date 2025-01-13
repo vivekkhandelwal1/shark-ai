@@ -238,8 +238,10 @@ class SignatureDispatcher:
         type_spec = tuple(type(t) for t in tensors)
         found_targets = self._target_cache.get(type_spec)
         if found_targets is None:
+            print("NO found_targets")
             # Slow-path try to find it.
             found_targets = self._match_targets(type_spec)
+            print(found_targets)
             self._target_cache[type_spec] = found_targets
         return reversed(found_targets)
 
@@ -275,9 +277,10 @@ class SignatureDispatcher:
 
     def _match_targets(self, type_spec: tuple):
         targets = []
+        print(type_spec)
         for override in self._overrides:
             override_type_spec = override.type_spec
-
+            print(override_type_spec)
             # Check if the override is a boolean type expression and if it is that it
             # satisfied.
             if self._is_type_expr_target(override_type_spec, type_spec):

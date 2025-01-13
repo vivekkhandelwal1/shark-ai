@@ -20,7 +20,7 @@
 
 module {
 
-util.func private @sharktank_llm_flash_attention_{{b1}}_{{b2}}_{{d}}_{{e}}_{{i_dtype}}_{{scale_dtype}}_{{o_dtype}}(
+util.func private @{{func_name}}(
     %q: !q_type,
     %k: !k_type,
     %v: !v_type,

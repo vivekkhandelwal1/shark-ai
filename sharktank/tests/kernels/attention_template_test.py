@@ -16,19 +16,25 @@ import torch
 from iree.turbine import aot
 from sharktank import kernels
 from sharktank.types import layout_utils
+from sharktank.utils import debugging
+from sharktank import ops
 
 
 class custom_attention(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(420)
+        debugging.flags.use_custom_iree_kernels = True
 
     @parameterized.expand(
         [
-            (torch.float32, 5e-3, 1e-3),
-            (torch.float16, 5e-3, 1e-3),
+            (torch.float32, 5e-3, 1e-3, True),
+            (torch.float16, 5e-3, 1e-3, True),
+            # Currently failing on unmasked error
+            # (torch.float32, 5e-3, 1e-3, False),
+            # (torch.float16, 5e-3, 1e-3, False),
         ]
     )
-    def test_compare_torch_spda(self, dtype, atol, rtol):
+    def test_compare_torch_spda(self, dtype, atol, rtol, use_mask):
         H = 4  # Head dim
         N = 1  # Batch Size
         L = 7  # Target Seq Len
@@ -39,24 +45,34 @@ class custom_attention(unittest.TestCase):
         k = torch.rand([N, H, S, Eqk], dtype=dtype)
         v = torch.rand([N, H, S, Ev], dtype=dtype)
         # mask is same type as inputs, therefore its added to score
-        mask = torch.rand([N, H, L, S], dtype=dtype)
+        mask = None
         scale = torch.tensor(1.0, dtype=dtype)
-        result = kernels.flash_attention(q, k, v, mask, scale)
+        if use_mask:
+            mask = torch.rand([N, H, L, S], dtype=dtype)
+
+            res2 = kernels.masked_flash_attention(q, k, v, mask, scale=scale)
+
+        else:
+            res2 = kernels.flash_attention(q, k, v, scale)
+        # result = ops.scaled_dot_product_attention(q, k, v, a=mask, is_causal=False, scale=scale)
 
         ref = torch.nn.functional.scaled_dot_product_attention(
             q, k, v, mask, scale=scale
         )
 
-        torch.testing.assert_close(result.to(dtype), ref, atol=atol, rtol=rtol)
+        torch.testing.assert_close(res2.to(dtype), ref, atol=atol, rtol=rtol)
 
     @parameterized.expand(
         [
-            (torch.float32, False),
-            (torch.float16, True),
-            (torch.float8_e4m3fnuz, False),
+            # Todo: fixed unmasked.
+            # (torch.float32, False, False),
+            (torch.float32, False, True),
+            (torch.float16, True, True),
+            (torch.float8_e4m3fnuz, False, True),
         ]
     )
-    def test_export_dynamic(self, dtype, static):
+    def test_export_dynamic(self, dtype, static, use_mask):
+        debugging.flags.use_custom_iree_kernels = True
         cast = False
         if dtype == torch.float8_e4m3fnuz:
             dtype = torch.float32
@@ -70,13 +86,15 @@ class custom_attention(unittest.TestCase):
         q = torch.rand([N, H, L, Eqk], dtype=dtype)
         k = torch.rand([N, H, S, Eqk], dtype=dtype)
         v = torch.rand([N, H, S, Ev], dtype=dtype)
-        # mask is same type as inputs, therefore its added to score
-        mask = torch.rand([N, H, L, S], dtype=dtype)
+        if use_mask:
+            # mask is same type as inputs, therefore its added to score
+            mask = torch.rand([N, H, L, S], dtype=dtype)
         if cast:
             q = q.to(torch.float8_e4m3fnuz)
             k = q.to(torch.float8_e4m3fnuz)
             v = v.to(torch.float8_e4m3fnuz)
-            mask = mask.to(torch.float8_e4m3fnuz)
+            if use_mask:
+                mask = mask.to(torch.float8_e4m3fnuz)
         scale = torch.tensor(1.0, dtype=dtype)
         dynamic_shapes = None
         if not static:
@@ -86,21 +104,32 @@ class custom_attention(unittest.TestCase):
                 "q": {2: L_dim},
                 "k": {2: S_dim},
                 "v": {2: S_dim},
-                "mask": {2: L_dim, 3: S_dim},
+                "mask": {},
                 "scale": {},
             }
+            if use_mask:
+                dynamic_shapes["mask"] = {2: L_dim, 3: S_dim}
 
         class MyModule(torch.nn.Module):
             def forward(self, q, k, v, mask, scale):
-                return kernels.flash_attention(q, k, v, mask, scale)
+                return ops.scaled_dot_product_attention(
+                    q, k, v, a=mask, is_causal=False, scale=scale
+                )
 
         mod = MyModule()
         dtype = torch.dtype
-        ep = torch.export.export(
-            mod,
-            args=(q, k, v, mask, scale),
-            dynamic_shapes=dynamic_shapes,
-        )
+        if use_mask:
+            ep = torch.export.export(
+                mod,
+                args=(q, k, v, mask, scale),
+                dynamic_shapes=dynamic_shapes,
+            )
+        else:
+            ep = torch.export.export(
+                mod,
+                args=(q, k, v, None, scale),
+                dynamic_shapes=dynamic_shapes,
+            )
         output = aot.export(ep)
         output.verify()
 
