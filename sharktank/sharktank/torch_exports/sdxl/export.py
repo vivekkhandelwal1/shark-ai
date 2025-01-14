@@ -66,7 +66,6 @@ class ControlledUnetModel(torch.nn.Module):
         
         state_dict = torch.load(model_ckpt, map_location="cpu")
         ip_layers = torch.nn.ModuleList(self.unet.attn_processors.values())
-        print(self.unet.attn_processors)
         if 'ip_adapter' in state_dict:
             state_dict = state_dict['ip_adapter']
         ip_layers.load_state_dict(state_dict)
@@ -261,9 +260,9 @@ def get_controlled_model_and_inputs(
     cfg_dim = 2
     dtype = torch_dtypes[precision]
     sample_inputs = {
-        "latents": torch.rand([batch_size, 4, width//8, height//8], dtype=dtype),
+        "latents": torch.rand([batch_size, 4, height//8, width//8], dtype=dtype),
         "t": torch.zeros(1, dtype=dtype),
-        "image": torch.rand([batch_size * cfg_dim, 3, width, height], dtype=dtype),
+        "image": torch.rand([batch_size * cfg_dim, 3, height, width], dtype=dtype),
         "prompt_embeds": torch.rand([batch_size * cfg_dim, max_length, 2048], dtype=dtype),
         "add_text_embeds": torch.rand([batch_size * cfg_dim, 1280], dtype=dtype),
         "add_time_ids": torch.zeros([batch_size * cfg_dim, 6], dtype=dtype),
@@ -291,9 +290,9 @@ def get_controlnet_model_and_inputs(
     cfg_dim = 2
     dtype = torch_dtypes[precision]
     sample_inputs = {
-        "latents": torch.rand([batch_size, 4, width//8, height//8], dtype=dtype),
+        "latents": torch.rand([batch_size, 4, height//8, width//8], dtype=dtype),
         "t": torch.zeros(1, dtype=dtype),
-        "image": torch.rand([batch_size * cfg_dim, 3, width, height], dtype=dtype),
+        "image": torch.rand([batch_size * cfg_dim, 3, height, width], dtype=dtype),
         "prompt_embeds": torch.rand([batch_size * cfg_dim, max_length, 2048], dtype=dtype),
         "add_text_embeds": torch.rand([batch_size * cfg_dim, 1280], dtype=dtype),
         "add_time_ids": torch.zeros([batch_size * cfg_dim, 6], dtype=dtype),
@@ -402,10 +401,10 @@ def export_sdxl_model(
             model, encode_args, decode_args = get_vae_model_and_inputs(hf_model_name, height, width, precision=precision, batch_size=batch_size)
             fxb = FxProgramsBuilder(model)
 
-            # TODO: fix issues with exporting the encode function.
-            @fxb.export_program(args=(encode_args,))
-            def _encode(module, inputs,):
-                return module.encode(*inputs)
+            # # TODO: fix issues with exporting the encode function.
+            # @fxb.export_program(args=(encode_args,))
+            # def _encode(module, inputs,):
+            #     return module.encode(*inputs)
 
             @fxb.export_program(args=(decode_args,))
             def _decode(module, inputs):
@@ -413,7 +412,7 @@ def export_sdxl_model(
 
             class CompiledVae(CompiledModule):
                 decode = _decode
-                encode = _encode
+                # encode = _encode
 
             if external_weights:
                 externalize_module_parameters(model)
@@ -426,7 +425,6 @@ def export_sdxl_model(
             golden_out_encode = model.encode(*encode_args)
             golden_out_decode = model.decode(*decode_args)
             golden_outputs = [golden_out_encode, golden_out_decode]
-            return None
         elif component == "controlnet":
             model, sample_inputs = get_controlnet_model_and_inputs(
                 hf_model_name, external_weight_path, height, width
@@ -484,6 +482,45 @@ def export_sdxl_model(
             sample_input_list = [sample_inputs]
             golden_outputs = [model.forward(*sample_inputs)]
 
+        elif component == "scheduler":
+            from scheduler import SchedulingModel, get_scheduler, get_sample_sched_inputs
+            scheduler_id = "EulerDiscrete"
+            scheduler = get_scheduler(hf_model_name, scheduler_id)
+            scheduler_module = SchedulingModel(
+                hf_model_name, scheduler, height, width, batch_size, dtype
+            )
+            init_args, prep_args, step_args = get_sample_sched_inputs(batch_size, height, width, dtype)
+            fxb = FxProgramsBuilder(scheduler_module)
+
+            @fxb.export_program(
+                args=(init_args,),
+            )
+            def _initialize(module, sample):
+                return module.initialize(*sample)
+
+            @fxb.export_program(
+                args=(prep_args,),
+            )
+            def _scale(module, inputs):
+                return module.prepare_model_input(*inputs)
+
+            @fxb.export_program(
+                args=(step_args,),
+            )
+            def _step(module, inputs):
+                return module.step(*inputs)
+
+            class CompiledScheduler(CompiledModule):
+                run_initialize = _initialize
+                run_scale = _scale
+                run_step = _step
+
+            import_to = "INPUT" if compile_to == "linalg" else "IMPORT"
+            inst = CompiledScheduler(context=Context(), import_to=import_to)
+
+            module = CompiledModule.get_mlir_module(inst)
+            sample_input_list = [init_args, prep_args, step_args]
+            golden_outputs = [scheduler_module.initialize(*init_args), scheduler_module.prepare_model_input(*prep_args), scheduler_module.step(*step_args)]
         else:
             raise ValueError("Unimplemented: ", component)
     if save_goldens:
@@ -491,7 +528,8 @@ def export_sdxl_model(
             for num, inp in enumerate(i):
                 np.save(f"{component}_{idx}_input_{num}.npy", inp)
         for idx, i in enumerate(golden_outputs):
-            np.save(f"{component}_golden_out_{idx}.npy", np.asarray(i))
+            for num, out in enumerate(i):
+                np.save(f"{component}_{num}_golden_out_{idx}.npy", np.asarray(out))
     module_str = str(module)
     return module_str
 
@@ -517,11 +555,6 @@ def get_filename(args):
             return create_safe_name(
                 args.model, f"clip_bs{args.batch_size}_{args.max_length}_{args.precision}"
             )
-        case "scheduler":
-            return create_safe_name(
-                args.model,
-                f"scheduler_bs{args.batch_size}_{args.max_length}_{args.precision}",
-            )
         case "vae":
             return create_safe_name(
                 args.model,
@@ -531,6 +564,11 @@ def get_filename(args):
             return create_safe_name(
                 args.model,
                 f"resampler_bs{args.batch_size}_512_{args.precision}",
+            )
+        case "scheduler":
+            return create_safe_name(
+                args.model,
+                f"scheduler_bs{args.batch_size}_{args.height}x{args.width}_{args.precision}"
             )
 
 
@@ -547,13 +585,13 @@ if __name__ == "__main__":
     p.add_argument(
         "--component",
         default="controlled_unet",
-        choices=["unet", "controlled_unet", "controlnet", "clip", "scheduler", "vae", "resampler"],
+        choices=["unet", "controlled_unet", "controlnet", "clip", "scheduler", "vae", "resampler", "scheduler"],
     )
-    p.add_argument("--batch_size", default=1)
-    p.add_argument("--height", default=1024)
-    p.add_argument("--width", default=960)
+    p.add_argument("--batch_size", type=int, default=1)
+    p.add_argument("--height", type=int, default=960)
+    p.add_argument("--width", type=int, default=1024)
     p.add_argument("--precision", default="fp16")
-    p.add_argument("--max_length", default=64)
+    p.add_argument("--max_length", type=int, default=64)
     p.add_argument("--external_weights", default="irpa")
     p.add_argument("--external_weights_path", default=None)
     p.add_argument("--decomp_attn", action="store_true")

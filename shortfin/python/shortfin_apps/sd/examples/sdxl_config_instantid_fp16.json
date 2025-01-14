@@ -1,0 +1,29 @@
+{
+    "max_seq_len": 64,
+    "num_latents_channels": 4,
+    "clip_batch_sizes": [
+      1
+    ],
+    "unet_batch_sizes": [
+      1
+    ],
+    "vae_batch_sizes": [
+      1
+    ],
+    "scheduler_batch_sizes": [
+      1
+    ],
+    "resampler_batch_sizes": [
+      1
+    ],
+    "pipeline": "instantid",
+    "unet_module_name": "compiled_controlled_unet",
+    "unet_fn_name": "run_forward",
+    "dims": [
+      [
+        960,
+        1024
+      ]
+    ]
+  }
+  

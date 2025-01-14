@@ -51,6 +51,8 @@ class ModelParams:
     # Same for scheduler.
     scheduler_batch_sizes: list[int]
 
+    resampler_batch_sizes: list[int]
+
     # Height and Width, respectively, for which Unet and VAE are compiled. e.g. [[512, 512], [1024, 1024]]
     dims: list[list[int]]
 
@@ -63,6 +65,7 @@ class ModelParams:
     unet_module_name: str = "compiled_unet"
     vae_module_name: str = "compiled_vae"
     scheduler_module_name: str = "compiled_scheduler"
+    resampler_module_name: str = "compiled_resampler"
 
     # some unet vmfbs have "main" as entrypoint.
     unet_fn_name: str = "run_forward"
@@ -75,6 +78,7 @@ class ModelParams:
     unet_dtype: sfnp.DType = sfnp.float16
     vae_dtype: sfnp.DType = sfnp.float16
 
+    pipeline: str = "txt2img"
     use_i8_punet: bool = False
 
     # ABI of the module.

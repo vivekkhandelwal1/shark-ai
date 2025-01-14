@@ -222,6 +222,9 @@ def main():
     p.add_argument(
         "--host", type=str, default="http://0.0.0.0", help="Server host address."
     )
+    p.add_argument(
+        "--pipeline", type=str, default="txt2img", choices=["txt2img", "instantid"]
+    )
     p.add_argument("--port", type=str, default="8000", help="Server port")
     p.add_argument(
         "--steps",

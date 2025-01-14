@@ -15,6 +15,7 @@ class GenerateReqInput:
     prompt: Optional[Union[List[str], str]] = None
     # The input negative prompt. It can be a single prompt or a batch of prompts.
     neg_prompt: Optional[Union[List[str], str]] = None
+    image: Optional[bytes] = None
     # Output image dimensions per prompt.
     height: Optional[Union[List[int], int]] = None
     width: Optional[Union[List[int], int]] = None

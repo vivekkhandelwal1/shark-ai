@@ -25,7 +25,7 @@ dtype_to_filetag = {
     sfnp.bfloat16: "bf16",
 }
 
-ARTIFACT_VERSION = "11182024"
+ARTIFACT_VERSION = "01142025"
 SDXL_BUCKET = (
     f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/"
 )
@@ -77,6 +77,11 @@ def get_params_filenames(model_params: ModelParams, model=None, splat: bool = Fa
     if model_params.use_i8_punet:
         modnames.append("punet")
         mod_precs.append("i8")
+    elif model_params.pipeline == "instantid":
+        modnames.append("controlled_unet")
+        mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
+        modnames.append("resampler")
+        mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
     else:
         modnames.append("unet")
         mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
@@ -100,12 +105,19 @@ def get_file_stems(model_params: ModelParams):
         if model_params.base_model_name.lower() == "sdxl"
         else [model_params.base_model_name]
     )
+    denoiser_name = "unet"
+    if model_params.pipeline == "instantid":
+        denoiser_name = "controlled_unet"
+    elif model_params.use_i8_punet:
+        denoiser_name = "punet"
     mod_names = {
         "clip": "clip",
-        "unet": "punet" if model_params.use_i8_punet else "unet",
-        "scheduler": model_params.scheduler_id + "Scheduler",
+        "unet": denoiser_name,
+        "scheduler": "scheduler",
         "vae": "vae",
     }
+    if model_params.pipeline == "instantid":
+        mod_names["resampler"] = "resampler"
     for mod, modname in mod_names.items():
         ord_params = [
             base,
@@ -115,15 +127,17 @@ def get_file_stems(model_params: ModelParams):
         for bs in getattr(model_params, f"{mod}_batch_sizes", [1]):
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
-        if mod in ["unet", "clip"]:
+        if mod in ["controlled_unet", "unet", "clip"]:
             ord_params.extend([[str(model_params.max_seq_len)]])
-        if mod in ["unet", "vae", "scheduler"]:
+        if mod in ["controlled_unet", "unet", "vae", "scheduler"]:
             dims = []
             for dim_pair in model_params.dims:
                 dim_pair_str = [str(d) for d in dim_pair]
                 dims.extend(["x".join(dim_pair_str)])
             ord_params.extend([dims])
-        if mod == "scheduler":
+        if mod in ["resampler"]:
+            ord_params.append([str(512)])
+        if mod in ["scheduler", "resampler"]:
             dtype_str = dtype_to_filetag[model_params.unet_dtype]
         elif mod != "unet":
             dtype_str = dtype_to_filetag[

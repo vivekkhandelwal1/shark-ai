@@ -159,6 +159,7 @@ def get_configs(args):
         f"--output-dir={args.artifacts_dir}",
         f"--model={modelname}",
         f"--topology={topology_inp}",
+        f"--config={args.config_id}",
     ]
     outs = subprocess.check_output(cfg_builder_args).decode()
     outs_paths = outs.splitlines()
@@ -210,6 +211,9 @@ def get_modules(args, model_config, flagfile, td_spec):
     # TODO: Move this out of server entrypoint
     vmfbs = {"clip": [], "unet": [], "vae": [], "scheduler": []}
     params = {"clip": [], "unet": [], "vae": []}
+    if "instantid" in model_config:
+        vmfbs["resampler"] = []
+        params["resampler"] = []
     model_flags = copy.deepcopy(vmfbs)
     model_flags["all"] = args.compile_flags
 
@@ -384,6 +388,13 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         default=None,
         choices=["spx_single", "cpx_single", "spx_multi", "cpx_multi"],
+        help="Use one of four known performant preconfigured device/fiber topologies.",
+    )
+    parser.add_argument(
+        "--config_id",
+        type=str,
+        default="i8",
+        choices=["i8", "instantid_fp16"],
         help="Use one of four known performant preconfigured device/fiber topologies.",
     )
     parser.add_argument(

@@ -8,7 +8,7 @@ from iree.build import *
 from iree.build.executor import FileNamespace
 import os
 
-ARTIFACT_VERSION = "01062025"
+ARTIFACT_VERSION = "01142025"
 SDXL_CONFIG_BUCKET = f"https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/{ARTIFACT_VERSION}/configs/"
 
 
@@ -62,11 +62,17 @@ def sdxlconfig(
         default="spx_single",
         help="System topology configfile keyword",
     ),
+    config=cl_arg(
+        "config",
+        type=str,
+        default="i8",
+        help="model config to fetch",
+    ),
 ):
     ctx = executor.BuildContext.current()
     update = needs_update(ctx)
 
-    model_config_filenames = [f"{model}_config_i8.json"]
+    model_config_filenames = [f"{model}_config_{config}.json"]
     model_config_urls = get_url_map(model_config_filenames, SDXL_CONFIG_BUCKET)
     for f, url in model_config_urls.items():
         if update or needs_file(f, ctx):
