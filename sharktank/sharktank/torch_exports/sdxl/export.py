@@ -17,8 +17,11 @@ import torch
 from diffusers.models import AutoencoderKL, ControlNetModel, ImageProjection, UNet2DConditionModel
 from ip_adapter.resampler import Resampler
 from ip_adapter.attention_processor import IPAttnProcessor2_0, AttnProcessor2_0
+from safetensors import safe_open
 
 from huggingface_hub import hf_hub_download
+
+import numpy as np
 
 
 
@@ -29,6 +32,7 @@ torch_dtypes = {
     "float16": torch.float16,
     "float32": torch.float32,
 }
+
 
 class ControlledUnetModel(torch.nn.Module):
     def __init__(self, unet: UNet2DConditionModel, controlnet: ControlNetModel):
@@ -41,7 +45,6 @@ class ControlledUnetModel(torch.nn.Module):
     def set_ip_adapter(self, model_ckpt, num_tokens, scale):
         unet = self.unet
         attn_procs = {}
-        breakpoint()
         for name in unet.attn_processors.keys():
             cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
             if name.startswith("mid_block"):
@@ -94,16 +97,16 @@ class ControlledUnetModel(torch.nn.Module):
         control_model_input = latent_model_input
         controlnet_added_cond_kwargs = added_cond_kwargs
 
-        # down_block_res_samples, mid_block_res_sample = self.controlnet(
-        #     control_model_input,
-        #     t,
-        #     encoder_hidden_states=prompt_image_emb,
-        #     controlnet_cond=image,
-        #     conditioning_scale=cond_scale,
-        #     guess_mode=False,
-        #     added_cond_kwargs=controlnet_added_cond_kwargs,
-        #     return_dict=False,
-        # )
+        down_block_res_samples, mid_block_res_sample = self.controlnet(
+            control_model_input,
+            t,
+            encoder_hidden_states=prompt_image_emb,
+            controlnet_cond=image,
+            conditioning_scale=cond_scale,
+            guess_mode=False,
+            added_cond_kwargs=controlnet_added_cond_kwargs,
+            return_dict=False,
+        )
         # predict the noise residual
         noise_pred = self.unet(
             latent_model_input,
@@ -111,8 +114,8 @@ class ControlledUnetModel(torch.nn.Module):
             encoder_hidden_states=encoder_hidden_states,
             timestep_cond=None,
             cross_attention_kwargs=self.cross_attention_kwargs,
-            # down_block_additional_residuals=down_block_res_samples,
-            # mid_block_additional_residual=mid_block_res_sample,
+            down_block_additional_residuals=down_block_res_samples,
+            mid_block_additional_residual=mid_block_res_sample,
             added_cond_kwargs=added_cond_kwargs,
             return_dict=False,
         )[0]
@@ -123,7 +126,77 @@ class ControlledUnetModel(torch.nn.Module):
             noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
 
         return noise_pred
-    
+
+class ResamplerModel(torch.nn.Module):
+    def __init__(self, model_ckpt, image_emb_dim=512, num_tokens=16):
+        super().__init__()
+        self.resampler = Resampler(
+            dim=1280,
+            depth=4,
+            dim_head=64,
+            heads=20,
+            num_queries=num_tokens,
+            embedding_dim=image_emb_dim,
+            output_dim=2048, # unet cross attn dim
+            ff_mult=4,
+        )
+        state_dict = torch.load(model_ckpt, map_location="cpu")
+        if 'image_proj' in state_dict:
+            state_dict = state_dict["image_proj"]
+        self.resampler.load_state_dict(state_dict)
+        self.image_proj_model_in_features = image_emb_dim
+        self.do_cfg = True
+
+
+    def forward(
+        self,
+        prompt_image_emb: torch.Tensor,
+    ):
+        prompt_image_emb = prompt_image_emb.reshape([1, -1, self.image_proj_model_in_features])
+        if self.do_cfg:
+            prompt_image_emb = torch.cat([torch.zeros_like(prompt_image_emb), prompt_image_emb], dim=0)
+        else:
+            prompt_image_emb = torch.cat([prompt_image_emb], dim=0)
+        return self.resampler(prompt_image_emb)
+
+class ControlnetModel(torch.nn.Module):
+    def __init__(self, controlnet: ControlNetModel):
+        super().__init__()
+        self.controlnet = controlnet
+        self.do_classifier_free_guidance = True
+        self.cross_attention_kwargs = None
+
+    def forward(
+        self,
+        latents: torch.Tensor,
+        t: torch.Tensor,
+        image: torch.Tensor,
+        prompt_embeds: torch.Tensor,
+        add_text_embeds: torch.Tensor, 
+        add_time_ids: torch.Tensor,
+        prompt_image_emb: torch.Tensor,
+        cond_scale: torch.Tensor,
+        guidance_scale: torch.Tensor,
+    ):
+        latent_model_input = torch.cat([latents] * 2) if self.do_classifier_free_guidance else latents
+        added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
+
+        # controlnet(s) inference
+        control_model_input = latent_model_input
+        controlnet_added_cond_kwargs = added_cond_kwargs
+
+        down_block_res_samples, mid_block_res_sample = self.controlnet(
+            control_model_input,
+            t,
+            encoder_hidden_states=prompt_image_emb,
+            controlnet_cond=image,
+            conditioning_scale=cond_scale,
+            guess_mode=False,
+            added_cond_kwargs=controlnet_added_cond_kwargs,
+            return_dict=False,
+        )
+        return down_block_res_samples, mid_block_res_sample
+
 class VaeModel(torch.nn.Module):
     def __init__(
         self,
@@ -200,6 +273,36 @@ def get_controlled_model_and_inputs(
     }
     return controlled_unet, list(sample_inputs.values())
 
+def get_controlnet_model_and_inputs(
+    hf_model_name,
+    external_weight_path,
+    height,
+    width,
+    controlnet_id = "InstantID/ControlNetModel",
+    ip_adapter_id = "InstantID/ip-adapter.bin",
+    ip_adapter_scale = 0.5,
+    quant_paths = None,
+    precision = "fp16",
+    batch_size = 1,
+    max_length = 64,
+):
+    controlnet = ControlNetModel.from_pretrained(controlnet_id, torch_dtype=torch.float16)
+    control_mod = ControlnetModel(controlnet)
+    cfg_dim = 2
+    dtype = torch_dtypes[precision]
+    sample_inputs = {
+        "latents": torch.rand([batch_size, 4, width//8, height//8], dtype=dtype),
+        "t": torch.zeros(1, dtype=dtype),
+        "image": torch.rand([batch_size * cfg_dim, 3, width, height], dtype=dtype),
+        "prompt_embeds": torch.rand([batch_size * cfg_dim, max_length, 2048], dtype=dtype),
+        "add_text_embeds": torch.rand([batch_size * cfg_dim, 1280], dtype=dtype),
+        "add_time_ids": torch.zeros([batch_size * cfg_dim, 6], dtype=dtype),
+        "prompt_image_emb": torch.rand([batch_size * cfg_dim, 16, 2048], dtype=dtype),
+        "cond_scale": torch.tensor([0.8], dtype=dtype),
+        "guidance_scale": torch.tensor([7.5], dtype=dtype),
+    }
+    return control_mod, list(sample_inputs.values())
+
 def get_vae_model_and_inputs(
     hf_model_name,
     height,
@@ -209,11 +312,15 @@ def get_vae_model_and_inputs(
     batch_size = 1,
 ):
     dtype = torch_dtypes[precision]
-    vae_model = VaeModel(hf_model_name).to(dtype=dtype)
+    if dtype == torch.float16:
+        custom_vae = "amd-shark/sdxl-quant-models"
+    else:
+        custom_vae = None
+    vae_model = VaeModel(hf_model_name, custom_vae=custom_vae).to(dtype=dtype)
     input_image_shape = (1, 3, height, width)
     input_latents_shape = (batch_size, num_channels, height // 8, width // 8)
     encode_args = [
-        torch.empty(
+        torch.rand(
             input_image_shape,
             dtype=dtype,
         )
@@ -250,6 +357,7 @@ def export_sdxl_model(
     external_weights=None,
     external_weight_path=None,
     decomp_attn=False,
+    save_goldens=True,
 ):
     dtype = torch_dtypes[precision]
     decomp_list = []
@@ -288,6 +396,8 @@ def export_sdxl_model(
             inst = CompiledControlledUnet(context=Context(), import_to="IMPORT")
 
             module = CompiledModule.get_mlir_module(inst)
+            sample_input_list = [sample_inputs]
+            golden_outputs = [model.forward(*sample_inputs)]
         elif component == "vae":
             model, encode_args, decode_args = get_vae_model_and_inputs(hf_model_name, height, width, precision=precision, batch_size=batch_size)
             fxb = FxProgramsBuilder(model)
@@ -312,9 +422,76 @@ def export_sdxl_model(
             inst = CompiledVae(context=Context(), import_to="IMPORT")
 
             module = CompiledModule.get_mlir_module(inst)
+            sample_input_list = [encode_args, decode_args]
+            golden_out_encode = model.encode(*encode_args)
+            golden_out_decode = model.decode(*decode_args)
+            golden_outputs = [golden_out_encode, golden_out_decode]
+            return None
+        elif component == "controlnet":
+            model, sample_inputs = get_controlnet_model_and_inputs(
+                hf_model_name, external_weight_path, height, width
+            )
+            fxb = FxProgramsBuilder(model)
+
+            @fxb.export_program(
+                args=(sample_inputs,),
+            )
+            def _forward(
+                module,
+                inputs,
+            ):
+                return module.forward(*inputs)
+
+            class CompiledControlnet(CompiledModule):
+                run_forward = _forward
+
+            if external_weights:
+                externalize_module_parameters(model)
+                save_module_parameters(external_weight_path, model)
+
+            inst = CompiledControlnet(context=Context(), import_to="IMPORT")
+
+            module = CompiledModule.get_mlir_module(inst)
+            sample_input_list = [sample_inputs]
+            out = model.forward(*sample_inputs)
+            golden_outputs = [out[0][0], out[0][1], out[1]]
+
+        elif component == "resampler":
+            ckpt_path = 'InstantID/ip-adapter.bin'
+            model = ResamplerModel(ckpt_path).to(dtype)
+            sample_inputs = [torch.rand([512], dtype=dtype)]
+            fxb = FxProgramsBuilder(model)
+
+            @fxb.export_program(
+                args=(sample_inputs,),
+            )
+            def _forward(
+                module,
+                inputs,
+            ):
+                return module.forward(*inputs)
+
+            class CompiledResampler(CompiledModule):
+                run_image_proj = _forward
+
+            if external_weights:
+                externalize_module_parameters(model)
+                save_module_parameters(external_weight_path, model)
+
+            inst = CompiledResampler(context=Context(), import_to="IMPORT")
+
+            module = CompiledModule.get_mlir_module(inst)
+            sample_input_list = [sample_inputs]
+            golden_outputs = [model.forward(*sample_inputs)]
+
         else:
             raise ValueError("Unimplemented: ", component)
-
+    if save_goldens:
+        for idx, i in enumerate(sample_input_list):
+            for num, inp in enumerate(i):
+                np.save(f"{component}_{idx}_input_{num}.npy", inp)
+        for idx, i in enumerate(golden_outputs):
+            np.save(f"{component}_golden_out_{idx}.npy", np.asarray(i))
     module_str = str(module)
     return module_str
 
@@ -326,6 +503,11 @@ def get_filename(args):
                 args.model,
                 f"controlled_unet_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}",
             )
+        case "controlnet":
+            return create_safe_name(
+                args.model,
+                f"controlnet_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}",
+            )
         case "unet":
             return create_safe_name(
                 args.model,
@@ -333,7 +515,7 @@ def get_filename(args):
             )
         case "clip":
             return create_safe_name(
-                args.model, f"clip_bs{args.batch_size}_77_{args.precision}"
+                args.model, f"clip_bs{args.batch_size}_{args.max_length}_{args.precision}"
             )
         case "scheduler":
             return create_safe_name(
@@ -344,6 +526,11 @@ def get_filename(args):
             return create_safe_name(
                 args.model,
                 f"vae_bs{args.batch_size}_{args.height}x{args.width}_{args.precision}",
+            )
+        case "resampler":
+            return create_safe_name(
+                args.model,
+                f"resampler_bs{args.batch_size}_512_{args.precision}",
             )
 
 
@@ -360,7 +547,7 @@ if __name__ == "__main__":
     p.add_argument(
         "--component",
         default="controlled_unet",
-        choices=["unet", "controlled_unet", "clip", "scheduler", "vae"],
+        choices=["unet", "controlled_unet", "controlnet", "clip", "scheduler", "vae", "resampler"],
     )
     p.add_argument("--batch_size", default=1)
     p.add_argument("--height", default=1024)
