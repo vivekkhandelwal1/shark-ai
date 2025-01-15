@@ -62,6 +62,7 @@ class GenerateService:
         self.inference_modules: dict[str, sf.ProgramModule] = {}
         self.inference_functions: dict[str, dict[str, sf.ProgramFunction]] = {}
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
+        self.face_analyzers = {}
         self.trace_execution = trace_execution
         self.show_progress = show_progress
 
@@ -131,6 +132,9 @@ class GenerateService:
 
     def start(self):
         # Initialize programs.
+        if self.model_params.pipeline == "instantid":
+            from .face_analysis import IREEFaceAnalysis
+            from insightface.app.face_analysis import FaceAnalysis
         for component in self.inference_modules:
             logger.info(f"Loading component: {component}")
             component_modules = [
@@ -155,22 +159,31 @@ class GenerateService:
                 )
 
         for worker_idx, worker in enumerate(self.workers):
+
+            if self.model_params.pipeline == "instantid":
+                # face_analyzer = IREEFaceAnalysis(
+                #     name='antelopev2', 
+                #     dim_param_dict = {'None' : 1, '?' : 640}, 
+                #     extra_compile_args=["--iree-llvmcpu-target-cpu=host"]
+                # )
+                face_analyzer = FaceAnalysis(name='antelopev2', root="~/.cache/shark/insightface_onnx", providers=['ROCMExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider'])
+                face_analyzer.prepare(ctx_id=0, det_size=(640, 640))
+                self.face_analyzers[worker_idx] = face_analyzer
+
+                self.inference_functions[worker_idx]["resample"] = self.inference_programs[worker_idx]["resampler"][
+                    f"compiled_resampler.run_image_proj"
+                ]
+
             self.inference_functions[worker_idx]["encode"] = {}
+
             for bs in self.model_params.clip_batch_sizes:
                 self.inference_functions[worker_idx]["encode"][
                     bs
-                ] = {
-                    "encode": self.inference_programs[worker_idx]["clip"][
+                ] = self.inference_programs[worker_idx]["clip"][
                         f"{self.model_params.clip_module_name}.encode_prompts"
-                    ]
-                }
-                if self.model_params.pipeline == "instantid":
-                    self.inference_functions[worker_idx]["encode"][
-                        bs
-                    ]["image_proj"] = self.inference_programs[worker_idx]["resampler"][
-                        f"compiled_resampler.run_image_proj"
-                    ]
-            
+                ]
+
+        
             self.inference_functions[worker_idx]["denoise"] = {}
             for bs in self.model_params.unet_batch_sizes:
                 self.inference_functions[worker_idx]["denoise"][bs] = {
@@ -247,6 +260,7 @@ class BatcherProcess(sf.Process):
         self.strobes: int = 0
         self.ideal_batch_size: int = max(service.model_params.max_batch_size)
         self.num_fibers = len(service.fibers)
+        self.pipeline = self.service.model_params.pipeline
 
     def shutdown(self):
         self.batcher_infeed.close()

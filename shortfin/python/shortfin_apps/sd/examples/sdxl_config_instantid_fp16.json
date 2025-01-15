@@ -17,6 +17,7 @@
       1
     ],
     "pipeline": "instantid",
+    "cfg_mode": false,
     "unet_module_name": "compiled_controlled_unet",
     "unet_fn_name": "run_forward",
     "dims": [

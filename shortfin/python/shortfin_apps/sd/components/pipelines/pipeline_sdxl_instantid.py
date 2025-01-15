@@ -12,8 +12,10 @@ import PIL
 from tqdm.auto import tqdm
 from pathlib import Path
 from PIL import Image
+import requests
 import base64
 import cv2
+from io import BytesIO
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -21,7 +23,7 @@ import shortfin.array as sfnp
 from ..messages import InferenceExecRequest, InferencePhase, StrobeMessage
 from ..tokenizer import Tokenizer
 from ..metrics import measure
-from ..face_analysis import IREEFaceAnalysis, draw_kps
+from ..face_analysis import draw_kps
 
 logger = logging.getLogger("shortfin-sd.instantid")
 
@@ -31,11 +33,15 @@ prog_isolations = {
     "per_call": sf.ProgramIsolation.PER_CALL,
 }
 
+def prepare_image_controlnet(image, width, height, dtype):
+    image = image.convert("RGB")
+    image = np.array(image.resize((height, width)))
+    return image.astype(dtype.name)
+
 
 ########################################################################################
 # Inference Executors
 ########################################################################################
-
 
 class InferenceExecutorProcess(sf.Process):
     """Executes a stable diffusion inference batch"""
@@ -49,8 +55,6 @@ class InferenceExecutorProcess(sf.Process):
         self.service = service
         self.worker_index = self.service.get_worker_index(fiber)
         self.exec_requests: list[InferenceExecRequest] = []
-        self.face_analyzer = IREEFaceAnalysis(name='antelopev2', root="./", dim_param_dict = {'None' : 1, '?' : 640}, extra_compile_args=["--iree-llvmcpu-target-cpu=host"])
-        self.face_analyzer.prepare(ctx_id=0, det_size=(640, 640))
 
     @measure(type="exec", task="inference process")
     async def run(self):
@@ -66,7 +70,7 @@ class InferenceExecutorProcess(sf.Process):
             device0 = self.fiber.device(0)
             if phases[InferencePhase.PREPARE]["required"]:
                 procs = [
-                    self._face_analysis(device=device0, requests=self.exec_requests),
+                    self._face_analysis(device=device0, reqs=self.exec_requests),
                     self._prepare(device=device0, requests=self.exec_requests),
                 ]
                 await asyncio.gather(*procs)
@@ -91,34 +95,34 @@ class InferenceExecutorProcess(sf.Process):
             for req in self.exec_requests:
                 req.done.set_success()
 
-    async def _face_analysis(self, device, requests):
-        for request in requests:
-            image = request.image
-            # Copied from diffusers.load_image
-            if isinstance(image, str):
-                if image.startswith("http://") or image.startswith("https://"):
-                    image = PIL.Image.open(requests.get(image, stream=True).raw)
-                elif os.path.isfile(image):
-                    image = PIL.Image.open(image)
-                else:
-                    raise ValueError(
-                        f"Incorrect path or URL. URLs must start with `http://` or `https://`, and {image} is not a valid path."
-                    )
-            elif isinstance(image, PIL.Image.Image):
-                image = image
-            else:
-                raise ValueError(
-                    "Incorrect format used for the image. Should be a URL linking to an image, a local path, or a PIL image."
-                )
-            face_image = PIL.ImageOps.exif_transpose(image)
-            face_info = self.face_analyzer.get(cv2.cvtColor(np.array(face_image), cv2.COLOR_RGB2BGR))
+    @measure(type="exec", task="face analysis")
+    async def _face_analysis(self, device, reqs):
+        for request in reqs:
+            url = request.image
+            response = requests.get(url, stream=True).raw
+            face_image = Image.open(response)
+            face_info = self.service.face_analyzers[self.worker_index].get(cv2.cvtColor(np.array(face_image), cv2.COLOR_RGB2BGR))
             face_info = sorted(face_info, key=lambda x:(x['bbox'][2]-x['bbox'][0])*x['bbox'][3]-x['bbox'][1])[-1] # only use the maximum face
-            face_emb = face_info['embedding']
+            face_emb = face_info['embedding'].astype("float16")
             face_kps = draw_kps(face_image, face_info['kps'])
-            request.prompt_image_emb = face_emb
-            request.image_in = face_kps
+            face_kps_prep = prepare_image_controlnet(face_kps, request.width, request.height, self.service.model_params.unet_dtype)
 
+            request.image_emb = sfnp.device_array.for_device(
+                device, (512,), self.service.model_params.unet_dtype
+            )
+            # shape[0] of image_in is program batch size * classifier free guidance multiplier (1 or 2)
+            request.image_in = sfnp.device_array.for_device(
+                device, (1, 3, request.height, request.width), self.service.model_params.unet_dtype
+            )
+            emb_host = request.image_emb.for_transfer()
+            with emb_host.map(discard=True) as m:
+                m.fill(face_emb)
+            kps_host = request.image_in.for_transfer()
+            with kps_host.map(discard=True) as m:
+                m.fill(np.asarray(face_kps_prep))
+            await device
 
+    @measure(type="exec", task="prepare")
     async def _prepare(self, device, requests):
         for request in requests:
             # Tokenize prompts and negative prompts. We tokenize in bs1 for now and join later.
@@ -159,6 +163,7 @@ class InferenceExecutorProcess(sf.Process):
             request.sample.copy_from(sample_host)
         return
 
+    @measure(type="exec", task="clip encode")
     async def _encode(self, device, requests):
         req_bs = len(requests)
         entrypoints = self.service.inference_functions[self.worker_index]["encode"]
@@ -169,6 +174,12 @@ class InferenceExecutorProcess(sf.Process):
         for bs, fn in entrypoints.items():
             if bs == req_bs:
                 break
+
+        resampler_fn = self.service.inference_functions[self.worker_index]["resample"]
+
+        for i in range(req_bs):
+            (req_embeds,) = await resampler_fn(requests[i].image_emb, fiber=self.fiber)
+            requests[i].prompt_image_emb = req_embeds
 
         # Prepare tokenized input ids for CLIP inference
 
@@ -208,17 +219,19 @@ class InferenceExecutorProcess(sf.Process):
         pe, te = await fn(*clip_inputs, fiber=self.fiber)
 
         for i in range(req_bs):
-            cfg_mult = 2
+            cfg_mult = 2 if self.service.model_params.cfg_mode else 1
             requests[i].prompt_embeds = pe.view(slice(i * cfg_mult, (i + 1) * cfg_mult))
             requests[i].text_embeds = te.view(slice(i * cfg_mult, (i + 1) * cfg_mult))
-
         return
 
+    @measure(type="exec", task="denoise")
     async def _denoise(self, device, requests):
         req_bs = len(requests)
         step_count = requests[0].steps
         cfg_mult = 2 if self.service.model_params.cfg_mode else 1
         # Produce denoised latents
+        breakpoint()
+        await device
         entrypoints = self.service.inference_functions[self.worker_index]["denoise"]
         if req_bs not in list(entrypoints.keys()):
             for request in requests:
@@ -236,6 +249,18 @@ class InferenceExecutorProcess(sf.Process):
             requests[0].height // 8,
             requests[0].width // 8,
         ]
+        # Prepared controlnet input image.
+        image_shape = [
+            req_bs * cfg_mult,
+            3,
+            requests[0].height,
+            requests[0].width,
+        ]
+        prompt_img_emb_shape = [
+            req_bs * cfg_mult,
+            16,
+            2048
+        ]
         # Assume we are doing classifier-free guidance
         hidden_states_shape = [
             req_bs * cfg_mult,
@@ -250,19 +275,30 @@ class InferenceExecutorProcess(sf.Process):
             "sample": sfnp.device_array.for_device(
                 device, latents_shape, self.service.model_params.unet_dtype
             ),
+            "image": sfnp.device_array.for_device(
+                device, image_shape, self.service.model_params.unet_dtype
+            ),
             "encoder_hidden_states": sfnp.device_array.for_device(
                 device, hidden_states_shape, self.service.model_params.unet_dtype
             ),
             "text_embeds": sfnp.device_array.for_device(
                 device, text_embeds_shape, self.service.model_params.unet_dtype
             ),
+            "prompt_image_emb": sfnp.device_array.for_device(
+                device, prompt_img_emb_shape, self.service.model_params.unet_dtype
+            ),
+            "cond_scale": sfnp.device_array.for_device(
+                device, [1], self.service.model_params.unet_dtype
+            ),
             "guidance_scale": sfnp.device_array.for_device(
-                device, [req_bs], self.service.model_params.unet_dtype
+                device, [1], self.service.model_params.unet_dtype
             ),
         }
-
+        breakpoint()
+        await device
         # Send guidance scale to device.
         gs_host = denoise_inputs["guidance_scale"].for_transfer()
+        cs_host = denoise_inputs["cond_scale"].for_transfer()
         for i in range(req_bs):
             cfg_dim = i * cfg_mult
             with gs_host.view(i).map(write=True, discard=True) as m:
@@ -270,10 +306,25 @@ class InferenceExecutorProcess(sf.Process):
                 np_arr = np.asarray(requests[i].guidance_scale, dtype="float16")
 
                 m.fill(np_arr)
+            with cs_host.view(i).map(write=True, discard=True) as m:
+                # TODO: do this without numpy
+                np_arr = np.asarray(requests[i].cond_scale, dtype="float16")
+
+                m.fill(np_arr)
             # Batch sample latent inputs on device.
             req_samp = requests[i].sample
             denoise_inputs["sample"].view(i).copy_from(req_samp)
 
+            req_img = requests[i].image_in
+            denoise_inputs["image"].view(
+                slice(cfg_dim, cfg_dim + cfg_mult)
+            ).copy_from(req_img)
+
+            req_img_embeds = requests[i].prompt_image_emb
+            denoise_inputs["prompt_image_emb"].view(
+                slice(cfg_dim, cfg_dim + cfg_mult)
+            ).copy_from(req_img_embeds)
+            
             # Batch CLIP hidden states.
             enc = requests[i].prompt_embeds
             denoise_inputs["encoder_hidden_states"].view(
@@ -287,7 +338,9 @@ class InferenceExecutorProcess(sf.Process):
             ).copy_from(temb)
 
         denoise_inputs["guidance_scale"].copy_from(gs_host)
-
+        denoise_inputs["cond_scale"].copy_from(cs_host)
+        await device
+        breakpoint()
         num_steps = sfnp.device_array.for_device(device, [1], sfnp.sint64)
         ns_host = num_steps.for_transfer()
         with ns_host.map(write=True) as m:
@@ -298,7 +351,8 @@ class InferenceExecutorProcess(sf.Process):
             denoise_inputs["sample"],
             num_steps,
         ]
-
+        breakpoint()
+        await device
         # Initialize scheduler.
         logger.debug(
             "INVOKE %r",
@@ -330,11 +384,21 @@ class InferenceExecutorProcess(sf.Process):
             unet_inputs = [
                 latent_model_input,
                 t,
+                denoise_inputs["image"],
                 denoise_inputs["encoder_hidden_states"],
                 denoise_inputs["text_embeds"],
                 time_ids,
+                denoise_inputs["prompt_image_emb"],
+                denoise_inputs["cond_scale"],
                 denoise_inputs["guidance_scale"],
             ]
+            for idx, i in enumerate(unet_inputs):
+                printable = i.for_transfer()
+                printable.copy_from(i)
+                await device
+                print("UNET INPUT ", idx)
+                print(printable)
+            await device
             logger.debug(
                 "INVOKE %r",
                 fns["unet"],
@@ -356,6 +420,7 @@ class InferenceExecutorProcess(sf.Process):
             req.denoised_latents.copy_from(latents.view(idx))
         return
 
+    @measure(type="exec", task="vae decode")
     async def _decode(self, device, requests):
         req_bs = len(requests)
         # Decode latents to images
@@ -415,6 +480,7 @@ class InferenceExecutorProcess(sf.Process):
             )
         return
 
+    @measure(type="exec", task="postprocess")
     async def _postprocess(self, device, requests):
         # Process output images
         for req in requests:

@@ -19,18 +19,19 @@ from PIL import Image
 
 sample_request = {
     "prompt": [
-        " a cat under the snow with blue eyes, covered by snow, cinematic style, medium shot, professional photo, animal",
+        "analog film photo of a woman in arabic clothing. faded film, desaturated, 35mm photo, grainy, vignette, vintage, Kodachrome, Lomography, stained, highly detailed, found footage, masterpiece, best quality",
     ],
-    "neg_prompt": ["Watermark, blurry, oversaturated, low resolution, pollution"],
-    "height": [1024],
+    "neg_prompt": ["(lowres, low quality, worst quality:1.2), (text:1.2), watermark, painting, drawing, illustration, glitch, deformed, mutated, cross-eyed, ugly, disfigured (lowres, low quality, worst quality:1.2), (text:1.2), watermark, painting, drawing, illustration, glitch,deformed, mutated, cross-eyed, ugly, disfigured"],
+    "image": ["https://raw.githubusercontent.com/nod-ai/shark-ai/refs/heads/sdxl-control/shortfin/python/shortfin_apps/sd/examples/example_face_julie_london.jpg"],
+    "height": [960],
     "width": [1024],
     "steps": [20],
-    "guidance_scale": [7.5],
-    "seed": [0],
+    "guidance_scale": [0.9],
+    "cond_scale": [0.8],
+    "seed": [1],
     "output_type": ["base64"],
     "rid": ["string"],
 }
-
 
 def bytes_to_img(in_bytes, outputdir, idx=0, width=1024, height=1024):
     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")

@@ -196,10 +196,10 @@ class ModelRouter:
             return None
 
 class IREEFaceAnalysis(FaceAnalysis):
-    def __init__(self, name="antelopev2", root='~/.insightface', allowed_modules=None, **kwargs):
+    def __init__(self, name="antelopev2", root='~/.cache/shark/', allowed_modules=None, **kwargs):
         self.models = {}
         _root = os.path.expanduser(root)
-        dir_path = os.path.join(_root, "models", name)
+        dir_path = os.path.join(_root, "insightface_onnx", name)
         onnx_files = glob.glob(osp.join(dir_path, '*.onnx'))
         onnx_files = sorted(onnx_files)
         for onnx_file in onnx_files:

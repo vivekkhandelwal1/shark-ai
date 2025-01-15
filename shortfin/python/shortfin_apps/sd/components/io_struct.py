@@ -15,7 +15,8 @@ class GenerateReqInput:
     prompt: Optional[Union[List[str], str]] = None
     # The input negative prompt. It can be a single prompt or a batch of prompts.
     neg_prompt: Optional[Union[List[str], str]] = None
-    image: Optional[bytes] = None
+    # For pipelines supporting image input. Should be a public URL for now.
+    image: Optional[Union[List[str], str]] = None
     # Output image dimensions per prompt.
     height: Optional[Union[List[int], int]] = None
     width: Optional[Union[List[int], int]] = None
@@ -23,6 +24,8 @@ class GenerateReqInput:
     steps: Optional[Union[List[int], int]] = None
     # The classifier-free-guidance scale for denoising; one float per prompt.
     guidance_scale: Optional[Union[List[float], float]] = None
+    # Controlnet conditioning scale.
+    cond_scale: Optional[Union[List[float], float]] = None
     # The seed for random latents generation; one int per prompt.
     seed: Optional[Union[List[int], int]] = None
     # Token ids: only used in place of prompt.
@@ -74,7 +77,3 @@ class GenerateReqInput:
         # Temporary restrictions
         heights = [self.height] if not isinstance(self.height, list) else self.height
         widths = [self.width] if not isinstance(self.width, list) else self.width
-        if any(dim != 1024 for dim in [*heights, *widths]):
-            raise ValueError(
-                "Currently, only 1024x1024 output image size is supported."
-            )

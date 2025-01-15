@@ -43,10 +43,12 @@ class InferenceExecRequest(sf.Message):
         self,
         prompt: str | None = None,
         neg_prompt: str | None = None,
+        image: str | None = None,
         height: int | None = None,
         width: int | None = None,
         steps: int | None = None,
         guidance_scale: float | sfnp.device_array | None = None,
+        cond_scale: float | sfnp.device_array | None = None,
         seed: int | None = None,
         input_ids: list[list[int]] | None = None,
         sample: sfnp.device_array | None = None,
@@ -54,6 +56,8 @@ class InferenceExecRequest(sf.Message):
         text_embeds: sfnp.device_array | None = None,
         timesteps: sfnp.device_array | None = None,
         time_ids: sfnp.device_array | None = None,
+        image_emb: sfnp.device_array | None = None,
+        prompt_image_emb: sfnp.device_array | None = None,
         denoised_latents: sfnp.device_array | None = None,
         image_array: sfnp.device_array | None = None,
     ):
@@ -69,15 +73,20 @@ class InferenceExecRequest(sf.Message):
         # Prep phase.
         self.prompt = prompt
         self.neg_prompt = neg_prompt
+        self.image = image
         self.height = height
         self.width = width
         self.seed = seed
+        self.image_emb = image_emb
+
 
         # Encode phase.
         # This is a list of sequenced positive and negative token ids and pooler token ids.
         self.input_ids = input_ids
 
         # Denoise phase.
+        self.image_in = None
+        self.prompt_image_emb = prompt_image_emb
         self.prompt_embeds = prompt_embeds
         self.text_embeds = text_embeds
         self.sample = sample
@@ -85,6 +94,7 @@ class InferenceExecRequest(sf.Message):
         self.timesteps = timesteps
         self.time_ids = time_ids
         self.guidance_scale = guidance_scale
+        self.cond_scale = cond_scale
 
         # Decode phase.
         self.denoised_latents = denoised_latents
@@ -109,10 +119,12 @@ class InferenceExecRequest(sf.Message):
         gen_inputs = [
             "prompt",
             "neg_prompt",
+            "image",
             "height",
             "width",
             "steps",
             "guidance_scale",
+            "cond_scale",
             "seed",
         ]
         rec_inputs = {}
