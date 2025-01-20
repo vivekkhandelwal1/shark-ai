@@ -90,6 +90,7 @@ class SchedulingModel(torch.nn.Module):
         sigma = sigmas[i]
         next_sigma = sigmas[i+1]
         t = timesteps[i]
+        sample = torch.cat([sample] * 2) if self.do_classifier_free_guidance else sample
         latent_model_input = sample / ((sigma**2 + 1) ** 0.5)
         self.model.is_scale_input_called = True
         return latent_model_input.type(
@@ -98,10 +99,12 @@ class SchedulingModel(torch.nn.Module):
 
     def step(self, noise_pred, sample, sigma, next_sigma):
         sample = sample.to(torch.float32)
+        gamma = 0.0
         noise_pred = noise_pred.to(torch.float32)
-        pred_original_sample = sample - sigma * noise_pred
-        deriv = (sample - pred_original_sample) / sigma
-        dt = next_sigma - sigma
+        sigma_hat = sigma * (gamma + 1)
+        pred_original_sample = sample - sigma_hat * noise_pred
+        deriv = (sample - pred_original_sample) / sigma_hat
+        dt = next_sigma - sigma_hat
         prev_sample = sample + deriv * dt
         return prev_sample.type(self.dtype)
 
@@ -156,19 +159,19 @@ def get_sample_sched_inputs(batch_size, height, width, dtype):
         width // 8,
     )
     init_args = (
-        torch.empty(sample, dtype=dtype),
+        torch.rand(sample, dtype=dtype),
         torch.tensor([10], dtype=torch.int64),
     )
     prep_args = (
-        torch.empty(sample, dtype=dtype),
+        torch.rand(sample, dtype=dtype),
         torch.tensor([10], dtype=torch.int64),
-        torch.empty(100, dtype=torch.float32),
-        torch.empty(100, dtype=torch.float32),
+        torch.rand(100, dtype=torch.float32),
+        torch.rand(100, dtype=torch.float32),
     )
     step_args = [
-        torch.empty(noise_pred_shape, dtype=dtype),
-        torch.empty(sample, dtype=dtype),
-        torch.empty(1, dtype=dtype),
-        torch.empty(1, dtype=dtype),
+        torch.rand(noise_pred_shape, dtype=dtype),
+        torch.rand(sample, dtype=dtype),
+        torch.rand(1, dtype=dtype),
+        torch.rand(1, dtype=dtype),
     ]
     return init_args, prep_args, step_args

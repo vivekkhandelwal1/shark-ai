@@ -7,6 +7,8 @@
 import os
 import re
 
+from PIL import Image
+
 from collections.abc import Iterable
 
 from iree.compiler.ir import Context
@@ -16,7 +18,7 @@ from iree.turbine.dynamo.passes import (
 )
 from iree.turbine.ops.iree import trace_tensor
 import torch
-
+from pipeline_stable_diffusion_xl_instantid import StableDiffusionXLInstantIDPipeline, draw_kps
 from diffusers.models import AutoencoderKL, ControlNetModel, ImageProjection, UNet2DConditionModel
 from ip_adapter.resampler import Resampler
 from ip_adapter.attention_processor import IPAttnProcessor2_0, AttnProcessor2_0
@@ -50,10 +52,8 @@ class ControlledUnetModel(torch.nn.Module):
         super().__init__()
         self.unet = unet
         self.controlnet = controlnet
-        self.do_classifier_free_guidance = False
+        self.do_classifier_free_guidance = True
         self.cross_attention_kwargs = None
-        self.set_ip_adapter(model_ckpt, num_tokens, scale)
-        self.set_ip_adapter_scale(0.8)
 
     def set_ip_adapter(self, model_ckpt, num_tokens, scale):
         unet = self.unet
@@ -101,19 +101,23 @@ class ControlledUnetModel(torch.nn.Module):
         cond_scale: torch.Tensor,
         guidance_scale: torch.Tensor,
     ):
-        latent_model_input = torch.cat([latents] * 2) if self.do_classifier_free_guidance else latents
         encoder_hidden_states = torch.cat([prompt_embeds, prompt_image_emb], dim=1)
         added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
         # controlnet(s) inference
-        control_model_input = latent_model_input
-        controlnet_added_cond_kwargs = added_cond_kwargs
+        control_model_input = latents
+        controlnet_prompt_embeds = prompt_image_emb
+        controlnet_added_cond_kwargs = {
+            "text_embeds": add_text_embeds,
+            "time_ids": add_time_ids,
+        }
+        control_image = image
 
         down_block_res_samples, mid_block_res_sample = self.controlnet(
             control_model_input,
             t,
-            encoder_hidden_states=prompt_image_emb,
-            controlnet_cond=image,
+            encoder_hidden_states=controlnet_prompt_embeds,
+            controlnet_cond=control_image,
             conditioning_scale=cond_scale,
             guess_mode=False,
             added_cond_kwargs=controlnet_added_cond_kwargs,
@@ -121,7 +125,7 @@ class ControlledUnetModel(torch.nn.Module):
         )
         # predict the noise residual
         noise_pred = self.unet(
-            latent_model_input,
+            latents,
             t,
             encoder_hidden_states=encoder_hidden_states,
             timestep_cond=None,
@@ -157,7 +161,7 @@ class ResamplerModel(torch.nn.Module):
             state_dict = state_dict["image_proj"]
         self.resampler.load_state_dict(state_dict)
         self.image_proj_model_in_features = image_emb_dim
-        self.do_cfg = False
+        self.do_cfg = True
 
 
     def forward(
@@ -175,7 +179,7 @@ class ControlnetModel(torch.nn.Module):
     def __init__(self, controlnet: ControlNetModel):
         super().__init__()
         self.controlnet = controlnet
-        self.do_classifier_free_guidance = False
+        self.do_classifier_free_guidance = True
         self.cross_attention_kwargs = None
 
     def forward(
@@ -190,11 +194,10 @@ class ControlnetModel(torch.nn.Module):
         cond_scale: torch.Tensor,
         guidance_scale: torch.Tensor,
     ):
-        latent_model_input = torch.cat([latents] * 2) if self.do_classifier_free_guidance else latents
         added_cond_kwargs = {"text_embeds": add_text_embeds, "time_ids": add_time_ids}
 
         # controlnet(s) inference
-        control_model_input = latent_model_input
+        control_model_input = latents
         controlnet_added_cond_kwargs = added_cond_kwargs
 
         down_block_res_samples, mid_block_res_sample = self.controlnet(
@@ -260,19 +263,29 @@ def get_controlled_model_and_inputs(
     width,
     controlnet_id = "InstantID/ControlNetModel",
     ip_adapter_id = "InstantID/ip-adapter.bin",
-    ip_adapter_scale = 0.8,
+    ip_adapter_scale = 0.5,
     quant_paths = None,
     precision = "fp16",
     batch_size = 1,
     max_length = 64,
+    cfg_mode = True,
 ):
-    unet_model = UNet2DConditionModel.from_pretrained(hf_model_name, subfolder="unet", torch_dtype=torch.float16)
+    #unet_model = UNet2DConditionModel.from_pretrained(hf_model_name, subfolder="unet", torch_dtype=torch.float16)
     controlnet = ControlNetModel.from_pretrained(controlnet_id, torch_dtype=torch.float16)
-    controlled_unet = ControlledUnetModel(unet_model, controlnet, ip_adapter_id, 16, ip_adapter_scale)
-    cfg_dim = 1
+    pipe = StableDiffusionXLInstantIDPipeline.from_pretrained(
+        "/home/eagarvey/face_swap/stable-diffusion-xl-base-1.0", controlnet=controlnet, torch_dtype=torch.float16
+    )
+    pipe.load_ip_adapter_instantid('InstantID/ip-adapter.bin')
+    pipe.set_ip_adapter_scale(ip_adapter_scale)
+    pipe.unet.eval()
+    pipe.controlnet.eval()
+
+    controlled_unet = ControlledUnetModel(pipe.unet, pipe.controlnet, ip_adapter_id, 16, ip_adapter_scale)
+
+    cfg_dim = 2 if cfg_mode else 1
     dtype = torch_dtypes[precision]
     sample_inputs = {
-        "latents": torch.rand([batch_size, 4, height//8, width//8], dtype=dtype),
+        "latents": torch.rand([batch_size * cfg_dim, 4, height//8, width//8], dtype=dtype),
         "t": torch.tensor([951.], dtype=dtype),
         "image": torch.rand([batch_size * cfg_dim, 3, height, width], dtype=dtype),
         "prompt_embeds": torch.rand([batch_size * cfg_dim, max_length, 2048], dtype=dtype),
@@ -296,10 +309,11 @@ def get_controlnet_model_and_inputs(
     precision = "fp16",
     batch_size = 1,
     max_length = 64,
+    cfg_mode = True,
 ):
     controlnet = ControlNetModel.from_pretrained(controlnet_id, torch_dtype=torch.float16)
     control_mod = ControlnetModel(controlnet)
-    cfg_dim = 1
+    cfg_dim = 2 if cfg_mode else 1
     dtype = torch_dtypes[precision]
     sample_inputs = {
         "latents": torch.rand([batch_size, 4, height//8, width//8], dtype=dtype),
@@ -371,7 +385,7 @@ def export_sdxl_model(
     save_goldens=True,
 ):
     dtype = torch_dtypes[precision]
-    decomp_list = []
+    decomp_list = [torch.ops.aten.logspace]
     if decomp_attn == True:
         decomp_list = [
             torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
@@ -503,7 +517,7 @@ def export_sdxl_model(
             scheduler_module = SchedulingModel(
                 hf_model_name, scheduler, height, width, batch_size, dtype
             )
-            scheduler_module.do_classifier_free_guidance = False
+            scheduler_module.do_classifier_free_guidance = True
             init_args, prep_args, step_args = get_sample_sched_inputs(batch_size, height, width, dtype)
             fxb = FxProgramsBuilder(scheduler_module)
 
@@ -535,7 +549,7 @@ def export_sdxl_model(
 
             module = CompiledModule.get_mlir_module(inst)
             sample_input_list = [init_args, prep_args, step_args]
-            golden_outputs = [scheduler_module.initialize(*init_args), scheduler_module.prepare_model_input(*prep_args), scheduler_module.step(*step_args)]
+            golden_outputs = [scheduler_module.step(*step_args)]
         else:
             raise ValueError("Unimplemented: ", component)
     if save_goldens:

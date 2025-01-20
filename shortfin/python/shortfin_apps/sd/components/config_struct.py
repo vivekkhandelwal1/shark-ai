@@ -51,8 +51,6 @@ class ModelParams:
     # Same for scheduler.
     scheduler_batch_sizes: list[int]
 
-    resampler_batch_sizes: list[int]
-
     # Height and Width, respectively, for which Unet and VAE are compiled. e.g. [[512, 512], [1024, 1024]]
     dims: list[list[int]]
 
@@ -71,7 +69,7 @@ class ModelParams:
     unet_fn_name: str = "run_forward"
 
     # Classifer free guidance mode. If set to false, only positive prompts will matter.
-    cfg_mode = True
+    cfg_mode: bool = True
 
     # DTypes (not necessarily weights precision):
     clip_dtype: sfnp.DType = sfnp.float16

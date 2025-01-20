@@ -16,6 +16,8 @@ import requests
 import base64
 import cv2
 from io import BytesIO
+from diffusers.utils.torch_utils import randn_tensor
+import torch
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -35,7 +37,9 @@ prog_isolations = {
 
 def prepare_image_controlnet(image, width, height, dtype):
     image = image.convert("RGB")
-    image = np.array(image.resize((height, width)))
+    image = image.resize((width, height), resample=Image.LANCZOS)
+    image = np.asarray(image)
+    image = np.array([image.transpose((2, 0, 1))]*2)
     return image.astype(dtype.name)
 
 
@@ -53,6 +57,7 @@ class InferenceExecutorProcess(sf.Process):
     ):
         super().__init__(fiber=fiber)
         self.service = service
+        self.cfg_mult = 2 if self.service.model_params.cfg_mode else 1
         self.worker_index = self.service.get_worker_index(fiber)
         self.exec_requests: list[InferenceExecRequest] = []
 
@@ -103,23 +108,44 @@ class InferenceExecutorProcess(sf.Process):
             face_image = Image.open(response)
             face_info = self.service.face_analyzers[self.worker_index].get(cv2.cvtColor(np.array(face_image), cv2.COLOR_RGB2BGR))
             face_info = sorted(face_info, key=lambda x:(x['bbox'][2]-x['bbox'][0])*x['bbox'][3]-x['bbox'][1])[-1] # only use the maximum face
-            face_emb = face_info['embedding'].astype("float16")
+            face_emb = face_info['embedding'].astype("float32")
             face_kps = draw_kps(face_image, face_info['kps'])
+            face_kps.save("face_kps_sfsdxl.png")
             face_kps_prep = prepare_image_controlnet(face_kps, request.width, request.height, self.service.model_params.unet_dtype)
-
+            image_in_np = np.asarray(face_kps_prep).astype("float32")
             request.image_emb = sfnp.device_array.for_device(
                 device, (512,), self.service.model_params.unet_dtype
             )
             # shape[0] of image_in is program batch size * classifier free guidance multiplier (1 or 2)
             request.image_in = sfnp.device_array.for_device(
-                device, (1, 3, request.height, request.width), self.service.model_params.unet_dtype
+                device, (self.cfg_mult, 3, request.height, request.width), self.service.model_params.unet_dtype
             )
-            emb_host = request.image_emb.for_transfer()
+            emb_host = request.image_emb.for_host(
+                device, (512,), sfnp.float32
+            )
             with emb_host.map(discard=True) as m:
                 m.fill(face_emb)
-            kps_host = request.image_in.for_transfer()
+            kps_host = sfnp.device_array.for_host(
+                device, (self.cfg_mult, 3, request.height, request.width), sfnp.float32
+            )
             with kps_host.map(discard=True) as m:
-                m.fill(np.asarray(face_kps_prep))
+                m.fill(image_in_np)
+
+            if self.service.model_params.unet_dtype != sfnp.float32:
+                kps_cast = request.image_in.for_transfer()
+                emb_cast = request.image_emb.for_transfer()
+                with kps_cast.map(discard=True) as m:
+                    m.fill(0)
+                with emb_cast.map(discard=True) as m:
+                    m.fill(0)
+                sfnp.convert(kps_host, dtype=self.service.model_params.unet_dtype, out=kps_cast)
+                sfnp.convert(emb_host, dtype=self.service.model_params.unet_dtype, out=emb_cast)
+                request.image_in.copy_from(kps_cast)
+                request.image_emb.copy_from(emb_cast)
+            else:
+                request.image_in.copy_from(kps_host)
+                request.image_emb.copy_from(emb_host)
+
             await device
 
     @measure(type="exec", task="prepare")
@@ -147,20 +173,23 @@ class InferenceExecutorProcess(sf.Process):
                 request.height // 8,
                 request.width // 8,
             )
-
+            generator = torch.Generator()
+            generator = generator.manual_seed(seed)
+            latents = randn_tensor(latents_shape, generator=generator, dtype=torch.float16).numpy()
             # Create and populate sample device array.
-            generator = sfnp.RandomGenerator(seed)
+            # generator = sfnp.RandomGenerator(seed)
             request.sample = sfnp.device_array.for_device(
                 device, latents_shape, unet_dtype
             )
 
             sample_host = request.sample.for_transfer()
             with sample_host.map(discard=True) as m:
-                m.fill(bytes(1))
+                m.fill(latents)
 
-            sfnp.fill_randn(sample_host, generator=generator)
+            # sfnp.fill_randn(sample_host, generator=generator)
 
             request.sample.copy_from(sample_host)
+            await device
         return
 
     @measure(type="exec", task="clip encode")
@@ -176,10 +205,14 @@ class InferenceExecutorProcess(sf.Process):
                 break
 
         resampler_fn = self.service.inference_functions[self.worker_index]["resample"]
-
+        prompt_img_emb_shape = [
+            req_bs * self.cfg_mult,
+            16,
+            2048
+        ]
         for i in range(req_bs):
-            (req_embeds,) = await resampler_fn(requests[i].image_emb, fiber=self.fiber)
-            requests[i].prompt_image_emb = req_embeds
+            image_emb = requests[i].image_emb
+            (requests[i].prompt_image_emb,) = await resampler_fn(image_emb, fiber=self.fiber)
 
         # Prepare tokenized input ids for CLIP inference
 
@@ -228,9 +261,9 @@ class InferenceExecutorProcess(sf.Process):
     async def _denoise(self, device, requests):
         req_bs = len(requests)
         step_count = requests[0].steps
-        cfg_mult = 2 if self.service.model_params.cfg_mode else 1
+        cfg_mult = self.cfg_mult
         # Produce denoised latents
-        breakpoint()
+        
         await device
         entrypoints = self.service.inference_functions[self.worker_index]["denoise"]
         if req_bs not in list(entrypoints.keys()):
@@ -278,14 +311,11 @@ class InferenceExecutorProcess(sf.Process):
             "image": sfnp.device_array.for_device(
                 device, image_shape, self.service.model_params.unet_dtype
             ),
-            "encoder_hidden_states": sfnp.device_array.for_device(
+            "prompt_embeds": sfnp.device_array.for_device(
                 device, hidden_states_shape, self.service.model_params.unet_dtype
             ),
             "text_embeds": sfnp.device_array.for_device(
                 device, text_embeds_shape, self.service.model_params.unet_dtype
-            ),
-            "prompt_image_emb": sfnp.device_array.for_device(
-                device, prompt_img_emb_shape, self.service.model_params.unet_dtype
             ),
             "cond_scale": sfnp.device_array.for_device(
                 device, [1], self.service.model_params.unet_dtype
@@ -294,7 +324,6 @@ class InferenceExecutorProcess(sf.Process):
                 device, [1], self.service.model_params.unet_dtype
             ),
         }
-        breakpoint()
         await device
         # Send guidance scale to device.
         gs_host = denoise_inputs["guidance_scale"].for_transfer()
@@ -316,31 +345,34 @@ class InferenceExecutorProcess(sf.Process):
             denoise_inputs["sample"].view(i).copy_from(req_samp)
 
             req_img = requests[i].image_in
-            denoise_inputs["image"].view(
-                slice(cfg_dim, cfg_dim + cfg_mult)
-            ).copy_from(req_img)
-
             req_img_embeds = requests[i].prompt_image_emb
-            denoise_inputs["prompt_image_emb"].view(
-                slice(cfg_dim, cfg_dim + cfg_mult)
-            ).copy_from(req_img_embeds)
-            
-            # Batch CLIP hidden states.
             enc = requests[i].prompt_embeds
-            denoise_inputs["encoder_hidden_states"].view(
-                slice(cfg_dim, cfg_dim + cfg_mult)
-            ).copy_from(enc)
-
-            # Batch CLIP text embeds.
             temb = requests[i].text_embeds
-            denoise_inputs["text_embeds"].view(
-                slice(cfg_dim, cfg_dim + cfg_mult)
-            ).copy_from(temb)
+            denoise_inputs["prompt_image_emb"] = requests[i].prompt_image_emb
+            if self.service.model_params.cfg_mode:
+                denoise_inputs["image"].view(
+                    slice(cfg_dim, cfg_dim + cfg_mult)
+                ).copy_from(req_img)
+                denoise_inputs["prompt_embeds"].view(
+                    slice(cfg_dim, cfg_dim + cfg_mult)
+                ).copy_from(enc)
+                denoise_inputs["text_embeds"].view(
+                    slice(cfg_dim, cfg_dim + cfg_mult)
+                ).copy_from(temb)
+            else:
+                denoise_inputs["image"].view(i).copy_from(req_img)
+                
+                denoise_inputs["prompt_embeds"].view(i).copy_from(enc)
 
+                denoise_inputs["text_embeds"].view(i).copy_from(temb)
         denoise_inputs["guidance_scale"].copy_from(gs_host)
         denoise_inputs["cond_scale"].copy_from(cs_host)
         await device
-        breakpoint()
+
+        img_host = denoise_inputs["image"].for_transfer()
+        img_host.copy_from(denoise_inputs["image"])
+        await device
+
         num_steps = sfnp.device_array.for_device(device, [1], sfnp.sint64)
         ns_host = num_steps.for_transfer()
         with ns_host.map(write=True) as m:
@@ -351,7 +383,7 @@ class InferenceExecutorProcess(sf.Process):
             denoise_inputs["sample"],
             num_steps,
         ]
-        breakpoint()
+        
         await device
         # Initialize scheduler.
         logger.debug(
@@ -385,20 +417,19 @@ class InferenceExecutorProcess(sf.Process):
                 latent_model_input,
                 t,
                 denoise_inputs["image"],
-                denoise_inputs["encoder_hidden_states"],
+                denoise_inputs["prompt_embeds"],
                 denoise_inputs["text_embeds"],
                 time_ids,
                 denoise_inputs["prompt_image_emb"],
                 denoise_inputs["cond_scale"],
                 denoise_inputs["guidance_scale"],
             ]
-            for idx, i in enumerate(unet_inputs):
-                printable = i.for_transfer()
-                printable.copy_from(i)
-                await device
-                print("UNET INPUT ", idx)
-                print(printable)
-            await device
+            # for idx, i in enumerate(unet_inputs):
+            #     printable = i.for_transfer()
+            #     printable.copy_from(i)
+            #     await device
+            #     print("UNET INPUT ", idx)
+            #     print(printable)
             logger.debug(
                 "INVOKE %r",
                 fns["unet"],
@@ -412,6 +443,7 @@ class InferenceExecutorProcess(sf.Process):
             )
             (latent_model_output,) = await fns["step"](*step_inputs, fiber=self.fiber)
             latents.copy_from(latent_model_output)
+            await device
 
         for idx, req in enumerate(requests):
             req.denoised_latents = sfnp.device_array.for_device(
