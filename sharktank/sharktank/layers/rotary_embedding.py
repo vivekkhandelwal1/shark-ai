@@ -250,7 +250,7 @@ class RotaryEmbeddingLayer(BaseLayer):
             )
             ### from llama3 embedding changes
             # TODO: get these values from Dataset
-            factor = 40  # in the original implementation
+            factor = 8  # in the original implementation
             low_freq_factor = 1  # in the original implementation
             high_freq_factor = 4
             old_context_len = 8192
