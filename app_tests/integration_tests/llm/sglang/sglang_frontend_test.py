@@ -19,13 +19,15 @@ from sentence_transformers import SentenceTransformer, util
 
 logger = logging.getLogger(__name__)
 
-DEVICE_SETTINGS = {
-    "device_flags": [
+from ..device_settings import DeviceSettings
+
+DEVICE_SETTINGS = DeviceSettings(
+    compile_flags=(
         "--iree-hal-target-backends=rocm",
         "--iree-hip-target=gfx942",
-    ],
-    "device": "hip",
-}
+    ),
+    server_flags=("--device=hip",),
+)
 
 ACCEPTED_THRESHOLD = 0.7
 
