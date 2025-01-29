@@ -19,10 +19,7 @@ from .utils import (
     log_jsonl_result,
 )
 
-from integration_tests.llm.utils import (
-    end_log_group,
-    start_log_group,
-)
+from integration_tests.llm.logging_utils import end_log_group, start_log_group
 from integration_tests.llm.server_management import ServerConfig, ServerInstance
 from integration_tests.llm.model_management import ModelArtifacts
 

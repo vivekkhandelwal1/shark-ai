@@ -8,9 +8,7 @@ import logging
 import re
 import pytest
 
-from ..utils import (
-    AccuracyValidationException,
-)
+from ..model_management import AccuracyValidationException
 
 pytest.importorskip("sglang")
 import sglang as sgl
@@ -71,7 +69,7 @@ def tip_suggestion(s):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
@@ -132,7 +130,7 @@ def test_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
@@ -290,7 +288,7 @@ def test_batch_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server",
     [
         (
             {"device_settings": DEVICE_SETTINGS},

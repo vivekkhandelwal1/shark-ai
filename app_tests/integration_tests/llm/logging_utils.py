@@ -7,12 +7,6 @@
 import os
 
 
-class AccuracyValidationException(RuntimeError):
-    """Exception raised when accuracy validation fails."""
-
-    pass
-
-
 def start_log_group(headline):
     """Start a collapsible log group in GitHub Actions."""
     if os.environ.get("GITHUB_ACTIONS") == "true":

@@ -19,7 +19,7 @@ from integration_tests.llm.model_management import (
     ModelProcessor,
     ModelSource,
 )
-from integration_tests.llm.utils import start_log_group, end_log_group
+from integration_tests.llm.logging_utils import start_log_group, end_log_group
 
 logger = logging.getLogger(__name__)
 

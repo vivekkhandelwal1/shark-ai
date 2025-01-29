@@ -9,6 +9,12 @@ from enum import Enum, auto
 logger = logging.getLogger(__name__)
 
 
+class AccuracyValidationException(RuntimeError):
+    """Exception raised when accuracy validation fails."""
+
+    pass
+
+
 class ModelSource(Enum):
     HUGGINGFACE = auto()
     LOCAL = auto()
