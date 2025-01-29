@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, Dict
 from enum import Enum, auto
 
-from sharktank.sharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
+from sharktank.utils.hf_datasets import Dataset, RemoteFile, get_dataset
 
 logger = logging.getLogger(__name__)
 
