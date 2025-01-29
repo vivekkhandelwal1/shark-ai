@@ -41,7 +41,7 @@ def model_artifacts(request, tmp_path_factory):
 
     model_config = ModelConfig(
         source=ModelSource.HUGGINGFACE,
-        repo_id="SlyEcho/llama3_8B_fp16",
+        repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
         model_file="meta-llama-3.1-8b-instruct.f16.gguf",
         tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
         batch_sizes=(1, 4),
