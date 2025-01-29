@@ -69,16 +69,17 @@ def tip_suggestion(s):
 
 
 @pytest.mark.parametrize(
-    "model_artifacts,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_multi_turn_qa(load_comparison_model, start_server):
+def test_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
 
@@ -130,16 +131,17 @@ def test_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "model_artifacts,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_stream_multi_turn_qa(load_comparison_model, start_server):
+def test_stream_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
 
@@ -184,16 +186,17 @@ def test_stream_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "pre_process_model,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_batch_multi_turn_qa(load_comparison_model, start_server):
+def test_batch_multi_turn_qa(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
     model = load_comparison_model
@@ -288,16 +291,17 @@ def test_batch_multi_turn_qa(load_comparison_model, start_server):
 
 
 @pytest.mark.parametrize(
-    "model_artifacts,start_server",
+    "model_artifacts,start_server,load_comparison_model",
     [
         (
             {"device_settings": DEVICE_SETTINGS},
             {"device_settings": DEVICE_SETTINGS},
+            None,
         )
     ],
     indirect=True,
 )
-def test_fork(load_comparison_model, start_server):
+def test_fork(model_artifacts, start_server, load_comparison_model):
     server, port = start_server
     register_shortfin_backend(port)
     model = load_comparison_model
