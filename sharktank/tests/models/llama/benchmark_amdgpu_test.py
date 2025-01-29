@@ -326,16 +326,19 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
         # TODO: add numpy files to Azure and download from it
-        self.artifacts_dir = Path("/shark-dev/data/llama3.1/weights/70b")
+        self.artifacts_dir = Path("/shark-dev/70b/instruct/weights")
         self.artifacts_dir_2048 = Path("/shark-dev/70b")
-        self.irpa_path = self.artifacts_dir / "fp16/llama3.1_70b_f16.irpa"
+        self.irpa_path_tp1 = self.artifacts_dir / "llama3.1_70b_instruct_fp16.irpa"
+        self.irpa_path_tp8 = (
+            self.artifacts_dir / "tp8/llama3_70b_instruct_fp16_tp8.irpa"
+        )
         self.irpa_path_fp8 = self.artifacts_dir / "f8/llama70b_fp8.irpa"
         self.tensor_parallelism_size = 8
         self.dir_path_70b = self.dir_path / "llama-70b"
         self.temp_dir_70b = Path(self.dir_path_70b)
         self.temp_dir_70b.mkdir(parents=True, exist_ok=True)
         self.llama70b_f16_torch_sdpa_artifacts = ExportArtifacts(
-            irpa_path=str(self.irpa_path),
+            irpa_path=str(self.irpa_path_tp1),
             batch_size=4,
             iree_hip_target="gfx942",
             iree_hal_target_device="hip",
@@ -471,10 +474,14 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
         output_shard_file_name = (
             self.artifacts_dir
-            / f"fp16/tp8/llama3.1_70b_fp16_tp{self.tensor_parallelism_size}_parameters.irpa"
+            / f"tp8/llama3_70b_instruct_fp16_tp{self.tensor_parallelism_size}.irpa"
         )
         if output_shard_file_name.exists():
             self.llama70b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
+        print(
+            "self.llama70b_f16_torch_sdpa_artifacts.irpa_path:",
+            self.llama70b_f16_torch_sdpa_artifacts.irpa_path,
+        )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts.export_to_mlir(
             mlir_path=output_mlir,
             json_path=output_json,
@@ -490,7 +497,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.llama70b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
-            irpa_path=self.irpa_path,
+            irpa_path=self.llama70b_f16_torch_sdpa_artifacts.irpa_path,
             args=self.iree_run_prefill_nondecomposed_args_128_tp8_fp16,
             cwd=self.repo_root,
         )
@@ -498,7 +505,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         self.llama70b_f16_torch_sdpa_artifacts.iree_benchmark_vmfb(
             hip_device_id=self.iree_device,
             vmfb_name=output_vmfb,
-            irpa_path=self.irpa_path,
+            irpa_path=self.llama70b_f16_torch_sdpa_artifacts.irpa_path,
             args=self.iree_run_decode_nondecomposed_args_128_tp8_fp16,
             cwd=self.repo_root,
         )
