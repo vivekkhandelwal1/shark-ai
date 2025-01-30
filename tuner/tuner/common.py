@@ -126,6 +126,18 @@ class ContractionDimensions:
 
 
 @dataclass
+class ConvolutionDimensions:
+  batch: list[int] = field(default_factory=list)
+  outputImage: list[int] = field(default_factory=list)
+  outputChannel: list[int] = field(default_factory=list)
+  filterLoop: list[int] = field(default_factory=list)
+  inputChannel: list[int] = field(default_factory=list)
+  depth: list[int] = field(default_factory=list)
+  strides: list[int] = field(default_factory=list)
+  dilations: list[int] = field(default_factory=list)
+
+
+@dataclass
 class ProblemSize:
     matmul_size: ContractionSizes
     lhs_type: ShapedType

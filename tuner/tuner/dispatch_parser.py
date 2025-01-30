@@ -99,7 +99,7 @@ class ContractionOpInterfaceParser(DispatchParser):
 # TODO(Max191): Support more convolution types. Only NHWC convs are supported.
 class ConvolutionOpInterfaceParser(DispatchParser):
     def __init__(self):
-        self.supported_ops = ["linalg.conv_2d_nhwc_hwcf"]
+        self.supported_ops = ["conv"]
 
     def supports(self, op_name: str) -> bool:
         for supported_op_name in self.supported_ops:
@@ -111,16 +111,27 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         self,
         ir_module: ir.Module,
     ) -> Optional[ir.Operation]:
-        return match_root_op(ir_module, NamedOpMatcher(self.supported_ops))
+        return match_root_op(ir_module, ConvolutionOpInterfaceMatcher())
 
     # TODO(Max191): Pass the ir_module directly instead of the template str.
     def get_shapes(self, template: list[str]) -> ProblemSize:
         ir_module = ir.Module.parse("\n".join(template))
-        conv_op = match_root_op(ir_module, NamedOpMatcher(self.supported_ops))
+        matcher = ConvolutionOpInterfaceMatcher()
+        conv_op = match_root_op(ir_module, matcher)
+        conv_dims = matcher.convolution_dimensions
+        lhs_dims = matcher.lhs_dims
+        rhs_dims = matcher.rhs_dims
+        res_dims = matcher.res_dims
+        print(f"conv_dims:\n{conv_dims}")
+        print(f"\nlhs_dims:\n{lhs_dims}")
+        print(f"rhs_dims:\n{rhs_dims}")
+        print(f"res_dims:\n{res_dims}")
         assert conv_op is not None, f"convolution op not found"
         lhs_type = ir.RankedTensorType(conv_op.operands[0].type)
         rhs_type = ir.RankedTensorType(conv_op.operands[1].type)
         res_type = ir.RankedTensorType(conv_op.operands[2].type)
+
+        # TODO: Use the convolution dims to replace the below logic
         dim_info = ConvDimInfo.from_rhs_res(rhs_type, res_type)
         return ProblemSize(
             matmul_size=ContractionSizes(
