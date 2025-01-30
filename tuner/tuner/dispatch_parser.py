@@ -132,7 +132,8 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         res_type = ir.RankedTensorType(conv_op.operands[2].type)
 
         # TODO: Use the convolution dims to replace the below logic
-        dim_info = ConvDimInfo.from_rhs_res(rhs_type, res_type)
+        dim_info = ConvDimInfo.from_rhs_res(rhs_type, rhs_dims, res_type, res_dims, conv_dims)
+        #breakpoint()
         return ProblemSize(
             matmul_size=ContractionSizes(
                 M=[dim_info.n, dim_info.oh, dim_info.ow],

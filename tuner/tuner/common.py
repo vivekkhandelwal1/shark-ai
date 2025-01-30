@@ -261,9 +261,22 @@ class ConvDimInfo:
     ic: int
 
     @staticmethod
-    def from_rhs_res(rhs_shaped_type: ShapedType, res_shaped_type: ShapedType):
-        n, oh, ow, oc = res_shaped_type.shape
-        fh, fw, ic, _ = rhs_shaped_type.shape
+    def from_rhs_res(rhs_shaped_type: ShapedType, rhs_dims, res_shaped_type: ShapedType, res_dims, conv_dims):
+        print(conv_dims)
+        rhs_shape = rhs_shaped_type.shape
+        filter_dict = {inner_list[0]: index for index, inner_list in enumerate(rhs_dims)}
+        fh = rhs_shape[filter_dict.get(conv_dims.filterLoop[0], -1)]
+        fw = rhs_shape[filter_dict.get(conv_dims.filterLoop[1], -1)]
+        oc = rhs_shape[filter_dict.get(conv_dims.outputChannel[0], -1)]
+        ic = rhs_shape[filter_dict.get(conv_dims.inputChannel[0], -1)]
+
+        res_shape = res_shaped_type.shape
+        res_dict = {inner_list[0]: index for index, inner_list in enumerate(res_dims)}
+        n = res_shape[res_dict.get(conv_dims.batch[0], -1)]
+        oh = res_shape[res_dict.get(conv_dims.outputImage[0], -1)]
+        ow = res_shape[res_dict.get(conv_dims.outputImage[1], -1)]
+
+        print(f"n={n}, oh={oh}, ow={ow}, oc={oc}, fh={fh}, fw={fw}, ic={ic}")
         return ConvDimInfo(n, oh, ow, oc, fh, fw, ic)
 
     @staticmethod

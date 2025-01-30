@@ -88,12 +88,20 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         compilation_info: iree_codegen.CompilationInfoAttr,
     ) -> ir.Module:
         conv_op: ir.Operation = self.get_conv_operation(ir_module)
-        assert (
-            conv_op.name == "linalg.conv_2d_nhwc_hwcf"
-        ), "expected linalg.conv_2d_nhwc_hwcf"
+        #assert (
+        #    conv_op.name == "linalg.conv_2d_nhwc_hwcf"
+        #), "expected linalg.conv_2d_nhwc_hwcf"
         lhs_type = ir.ShapedType(conv_op.operands[0].type)
         rhs_type = ir.ShapedType(conv_op.operands[1].type)
         acc_type = ir.ShapedType(conv_op.operands[2].type)
+        #N = problem_size.matmul_size.M[0]
+        #H = problem_size.matmul_size.M[1]
+        #W = problem_size.matmul_size.M[2]
+        #C = problem_size.matmul_size.K[2]
+        #P = problem_size.matmul_size.K[0]
+        #Q = problem_size.matmul_size.K[1]
+        #F = problem_size.matmul_size.N[0]
+        # Below sizes are incorrect, need to get the correct sizes from the problem_size.
         N = acc_type.get_dim_size(0)
         H = acc_type.get_dim_size(1)
         W = acc_type.get_dim_size(2)
@@ -104,6 +112,8 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         conv_type = conv_op.name.split(".")[-1]
         # TODO(Max191): Get the function name from the func.func in the input module.
         func_name = f"match_{conv_type}_{N}x{H}x{W}x{C}x{P}x{Q}x{F}_{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        print(f"func_name: {func_name}")
+        #breakpoint()
         return build_td_spec(ir_module.context, conv_op, compilation_info, func_name)
 
 
