@@ -93,6 +93,9 @@ class ContractionOpInterfaceParser(DispatchParser):
             res_type=ShapedType(res_type.shape, res_type.element_type),
             dispatch_kind=DispatchKind.contraction,
             contraction_dims=contraction_dims,
+            lhs_dims=[[d] for d in matcher.lhs_dims],
+            rhs_dims=[[d] for d in matcher.rhs_dims],
+            res_dims=[[d] for d in matcher.res_dims]
         )
 
 
@@ -117,8 +120,11 @@ class ConvolutionOpInterfaceParser(DispatchParser):
     def get_shapes(self, template: list[str]) -> ProblemSize:
         ir_module = ir.Module.parse("\n".join(template))
         matcher = ConvolutionOpInterfaceMatcher()
+        breakpoint()
         conv_op = match_root_op(ir_module, matcher)
+        print(f"conv_op: {conv_op}")
         conv_dims = matcher.convolution_dimensions
+
         lhs_dims = matcher.lhs_dims
         rhs_dims = matcher.rhs_dims
         res_dims = matcher.res_dims
@@ -127,12 +133,12 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         print(f"rhs_dims:\n{rhs_dims}")
         print(f"res_dims:\n{res_dims}")
         assert conv_op is not None, f"convolution op not found"
+
         lhs_type = ir.RankedTensorType(conv_op.operands[0].type)
         rhs_type = ir.RankedTensorType(conv_op.operands[1].type)
         res_type = ir.RankedTensorType(conv_op.operands[2].type)
 
-        # TODO: Use the convolution dims to replace the below logic
-        dim_info = ConvDimInfo.from_rhs_res(rhs_type, res_type)
+        dim_info = ConvDimInfo.from_rhs_res(rhs_type, matcher.rhs_dims, res_type, matcher.res_dims, conv_dims)
         return ProblemSize(
             matmul_size=ContractionSizes(
                 M=[dim_info.n, dim_info.oh, dim_info.ow],
@@ -148,4 +154,8 @@ class ConvolutionOpInterfaceParser(DispatchParser):
                 n=[3],
                 k=[4, 5, 6],
             ),
+            lhs_dims=matcher.lhs_dims,
+            rhs_dims=matcher.rhs_dims,
+            res_dims=matcher.res_dims,
+            conv_dims=conv_dims
         )

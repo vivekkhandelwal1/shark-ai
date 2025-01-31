@@ -341,7 +341,6 @@ def generate_compilation_infos(
             )
     return compilation_infos
 
-
 def adjust_problem_size_for_pipeline(
     problem_size: ProblemSize,
     pipeline_options_search_space: PipelineOptionsSearchSpace,
@@ -360,6 +359,60 @@ def adjust_problem_size_for_pipeline(
     problem_size.contraction_dims.k = [problem_size.contraction_dims.k[0]]
     problem_size.matmul_size.K = [math.prod(problem_size.matmul_size.K)]
 
+#def adjust_problem_size_for_pipeline(
+#    problem_size: ProblemSize,
+#    pipeline_options_search_space: PipelineOptionsSearchSpace,
+#    codegen_pipeline: iree_codegen.DispatchLoweringPassPipeline,
+#):
+#    # Adjustment is only needed for IGEMM. Fail if the problem is not a conv
+#    # going down the TileAndFuse pipeline.
+#    if (
+#        codegen_pipeline != iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
+#        or problem_size.dispatch_kind != DispatchKind.conv
+#        or problem_size.rhs_dims is None
+#    ):
+#        return
+#    pipeline_options_search_space.use_igemm_convolution = [True]
+#
+#    k_group = set(problem_size.contraction_dims.k)
+#    rhs_dims = problem_size.rhs_dims
+#    k_contraction_dims = []
+#    k_contraction_dim_current = []
+#    # Iterate through the filter shape. For each dimension, check if it is in the
+#    # K contraction dimensions. If it is, add it to the current contraction_dim
+#    for dim in rhs_dims:
+#        element = dim[0]
+#        if element in k_group:
+#            k_contraction_dim_current.append(element)
+#        else:
+#            # If the first element is not in the K contraction dims, then the
+#            # current contraction dim might still be empty. Skip it in this case.
+#            if k_contraction_dim_current:
+#                k_contraction_dims.append(k_contraction_dim_current)
+#                k_contraction_dim_current = []
+#
+#    # Append the last contraction dim if it exists
+#    if k_contraction_dim_current:
+#        k_contraction_dims.append(k_contraction_dim_current)
+#
+#    # Reset the contraction dims and matmul sizes using the new K contraction dims
+#    k_start = problem_size.contraction_dims.k[0]
+#    k_index_dict = {dim[0]: i for i, dim in enumerate(rhs_dims)}
+#    filter_shape = problem_size.rhs_type.shape
+#    problem_size.contraction_dims.k = []
+#    problem_size.matmul_size.K = []
+#    for contraction_dim in k_contraction_dims:
+#        problem_size.contraction_dims.k.append(  k_start)
+#        dim_indexes = [k_index_dict[dim] for dim in contraction_dim]
+#        filter_shapes = [filter_shape[index] for index in dim_indexes]
+#        collapsed_dim_size = math.prod(filter_shapes)
+#        problem_size.matmul_size.K.append(collapsed_dim_size)
+#        k_start += 1
+#
+#    print(problem_size)
+#    print(problem_size.contraction_dims.k)
+#    print(problem_size.matmul_size.K)
+#    #breakpoint()
 
 def generate_solutions(
     tuner_ctx: TunerContext,
