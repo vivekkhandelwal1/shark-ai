@@ -127,14 +127,14 @@ class ContractionDimensions:
 
 @dataclass
 class ConvolutionDimensions:
-  batch: list[int] = field(default_factory=list)
-  outputImage: list[int] = field(default_factory=list)
-  outputChannel: list[int] = field(default_factory=list)
-  filterLoop: list[int] = field(default_factory=list)
-  inputChannel: list[int] = field(default_factory=list)
-  depth: list[int] = field(default_factory=list)
-  strides: list[int] = field(default_factory=list)
-  dilations: list[int] = field(default_factory=list)
+    batch: list[int] = field(default_factory=list)
+    outputImage: list[int] = field(default_factory=list)
+    outputChannel: list[int] = field(default_factory=list)
+    filterLoop: list[int] = field(default_factory=list)
+    inputChannel: list[int] = field(default_factory=list)
+    depth: list[int] = field(default_factory=list)
+    strides: list[int] = field(default_factory=list)
+    dilations: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -265,22 +265,28 @@ class ConvDimInfo:
     ic: int
 
     @staticmethod
-    def from_rhs_res(rhs_shaped_type: ShapedType, rhs_dims: Optional[list[list[int]]], res_shaped_type: ShapedType, res_dims: Optional[list[list[int]]], conv_dims: Optional[ConvolutionDimensions]):
+    def from_rhs_res(
+        rhs_shaped_type: ShapedType,
+        rhs_dims: Optional[list[list[int]]],
+        res_shaped_type: ShapedType,
+        res_dims: Optional[list[list[int]]],
+        conv_dims: Optional[ConvolutionDimensions],
+    ):
         assert rhs_dims is not None, "no rhs dimensions"
         assert res_dims is not None, "no result dimensions"
         assert conv_dims is not None, "no convolution dimensions"
 
         rhs_shape = rhs_shaped_type.shape
-        filter_dict = {inner_list[0]: index for index,
-                       inner_list in enumerate(rhs_dims)}
+        filter_dict = {
+            inner_list[0]: index for index, inner_list in enumerate(rhs_dims)
+        }
         fh = rhs_shape[filter_dict.get(conv_dims.filterLoop[0], -1)]
         fw = rhs_shape[filter_dict.get(conv_dims.filterLoop[1], -1)]
         oc = rhs_shape[filter_dict.get(conv_dims.outputChannel[0], -1)]
         ic = rhs_shape[filter_dict.get(conv_dims.inputChannel[0], -1)]
 
         res_shape = res_shaped_type.shape
-        res_dict = {inner_list[0]: index for index,
-                    inner_list in enumerate(res_dims)}
+        res_dict = {inner_list[0]: index for index, inner_list in enumerate(res_dims)}
         n = res_shape[res_dict.get(conv_dims.batch[0], -1)]
         oh = res_shape[res_dict.get(conv_dims.outputImage[0], -1)]
         ow = res_shape[res_dict.get(conv_dims.outputImage[1], -1)]
@@ -289,7 +295,13 @@ class ConvDimInfo:
 
     @staticmethod
     def from_problem_size(problem_size: ProblemSize):
-        return ConvDimInfo.from_rhs_res(problem_size.rhs_type, problem_size.rhs_dims, problem_size.res_type, problem_size.res_dims, problem_size.conv_dims)
+        return ConvDimInfo.from_rhs_res(
+            problem_size.rhs_type,
+            problem_size.rhs_dims,
+            problem_size.res_type,
+            problem_size.res_dims,
+            problem_size.conv_dims,
+        )
 
 
 @dataclass

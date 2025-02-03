@@ -41,7 +41,7 @@ class DispatchTuner(DispatchParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
-        problem_size: ProblemSize
+        problem_size: ProblemSize,
     ) -> ir.Module:
         """Generate a transform dialect spec that applies the compilation info attr."""
         pass
@@ -67,7 +67,7 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
-        problem_size: ProblemSize
+        problem_size: ProblemSize,
     ) -> ir.Module:
         contraction_op: ir.Operation = self.get_contraction_operation(ir_module)
         lhs_type = ir.ShapedType(contraction_op.operands[0].type)
@@ -88,7 +88,7 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
-        problem_size: ProblemSize
+        problem_size: ProblemSize,
     ) -> ir.Module:
         conv_op: ir.Operation = self.get_conv_operation(ir_module)
         lhs_type = ir.ShapedType(conv_op.operands[0].type)
@@ -96,16 +96,16 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         acc_type = ir.ShapedType(conv_op.operands[2].type)
 
         M = [mDim for mDim in problem_size.matmul_size.M]
-        M_str = 'x'.join([str(mDim) for mDim in M])
+        M_str = "x".join([str(mDim) for mDim in M])
         N = [nDim for nDim in problem_size.matmul_size.N]
-        N_str = 'x'.join([str(nDim) for nDim in N])
+        N_str = "x".join([str(nDim) for nDim in N])
         K = [kDim for kDim in problem_size.matmul_size.K]
-        K_str = 'x'.join([str(kDim) for kDim in K])
+        K_str = "x".join([str(kDim) for kDim in K])
 
         conv_type = conv_op.name.split(".")[-1]
         # TODO(Max191): Get the function name from the func.func in the input module.
-        func_name = f"match_{conv_type}_{M_str}_{N_str}_{K_str}_{
-            lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
+        func_name = f"match_{conv_type}_{M_str}_{N_str}_{K_str}_"
+        f"{lhs_type.element_type}x{rhs_type.element_type}x{acc_type.element_type}"
         tune_logger.debug(f"func_name: {func_name}")
 
         return build_td_spec(ir_module.context, conv_op, compilation_info, func_name)

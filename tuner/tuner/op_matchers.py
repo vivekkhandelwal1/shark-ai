@@ -93,7 +93,10 @@ class GenericOpMatcher(NamedOpMatcher):
 
         maps_attr = None
         for attr in op.opview.attributes:
-            if (attr.name == "indexing_maps" or attr.name == "linalg.memoized_indexing_maps") and isinstance(attr.attr, ir.ArrayAttr):
+            if (
+                attr.name == "indexing_maps"
+                or attr.name == "linalg.memoized_indexing_maps"
+            ) and isinstance(attr.attr, ir.ArrayAttr):
                 maps_attr = attr.attr
         if maps_attr is None:
             return False
@@ -124,7 +127,9 @@ def get_map_result_dim_positions(map: ir.AffineMap):
     return exprs
 
 
-def get_convolution_dims(lhs_map: ir.AffineMap, rhs_map: ir.AffineMap, res_map: ir.AffineMap):
+def get_convolution_dims(
+    lhs_map: ir.AffineMap, rhs_map: ir.AffineMap, res_map: ir.AffineMap
+):
     if not rhs_map.is_projected_permutation or not res_map.is_projected_permutation:
         return None
     lhs_dims = []
@@ -287,7 +292,9 @@ class ConvolutionOpInterfaceMatcher(GenericOpMatcher):
     def __init__(self) -> None:
         super().__init__()
         self.supported_named_ops = [
-            "linalg.conv_2d_nhwc_hwcf", "linalg.conv_2d_nhwc_hwfc"]
+            "linalg.conv_2d_nhwc_hwcf",
+            "linalg.conv_2d_nhwc_hwfc",
+        ]
         self.op_names.extend(self.supported_named_ops)
         self.convolution_dimensions: Optional[ConvolutionDimensions] = None
         self.lhs_dims: Optional[list[list[int]]] = None

@@ -95,7 +95,7 @@ class ContractionOpInterfaceParser(DispatchParser):
             contraction_dims=contraction_dims,
             lhs_dims=[[d] for d in matcher.lhs_dims],
             rhs_dims=[[d] for d in matcher.rhs_dims],
-            res_dims=[[d] for d in matcher.res_dims]
+            res_dims=[[d] for d in matcher.res_dims],
         )
 
 
@@ -130,7 +130,8 @@ class ConvolutionOpInterfaceParser(DispatchParser):
         res_type = ir.RankedTensorType(conv_op.operands[2].type)
 
         dim_info = ConvDimInfo.from_rhs_res(
-            rhs_type, matcher.rhs_dims, res_type, matcher.res_dims, conv_dims)
+            rhs_type, matcher.rhs_dims, res_type, matcher.res_dims, conv_dims
+        )
         return ProblemSize(
             matmul_size=ContractionSizes(
                 M=[dim_info.n, dim_info.oh, dim_info.ow],
@@ -149,5 +150,5 @@ class ConvolutionOpInterfaceParser(DispatchParser):
             lhs_dims=matcher.lhs_dims,
             rhs_dims=matcher.rhs_dims,
             res_dims=matcher.res_dims,
-            conv_dims=conv_dims
+            conv_dims=conv_dims,
         )
