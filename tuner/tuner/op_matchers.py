@@ -137,7 +137,7 @@ def get_convolution_dims(lhs_map: ir.AffineMap, rhs_map: ir.AffineMap, res_map: 
     filter_loop_dims = []
     strides = []
     dilations = []
-    
+
     def get_dim_pos(dim):
         if len(dim) < 1 or dim[0] != "d" or not dim[1:].isdigit():
             return None
@@ -195,7 +195,7 @@ def get_convolution_dims(lhs_map: ir.AffineMap, rhs_map: ir.AffineMap, res_map: 
             dilations.append(1)
             lhs_dims.append([img_dim, filter_dim])
             continue
-    
+
     # lhs_dims is a 2D array. Get the set of dims lhs dims.
     lhs_dim_set = set()
     for dims in lhs_dims:
@@ -205,7 +205,7 @@ def get_convolution_dims(lhs_map: ir.AffineMap, rhs_map: ir.AffineMap, res_map: 
     for d in range(rhs_map.n_dims):
         if d not in lhs_dim_set and d in rhs_dims and d in res_dims:
             output_channel_dims.append(d)
-    
+
     # Verify that there are convolved dims
     if len(filter_loop_dims) == 0:
         return None
@@ -286,7 +286,8 @@ class ContractionOpInterfaceMatcher(GenericOpMatcher):
 class ConvolutionOpInterfaceMatcher(GenericOpMatcher):
     def __init__(self) -> None:
         super().__init__()
-        self.supported_named_ops = ["linalg.conv_2d_nhwc_hwcf"]
+        self.supported_named_ops = [
+            "linalg.conv_2d_nhwc_hwcf", "linalg.conv_2d_nhwc_hwfc"]
         self.op_names.extend(self.supported_named_ops)
         self.convolution_dimensions: Optional[ConvolutionDimensions] = None
         self.lhs_dims: Optional[list[list[int]]] = None
