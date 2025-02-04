@@ -20,7 +20,7 @@ from integration_tests.llm.model_management import (
     ModelSource,
     ModelArtifacts,
 )
-from ..server_management import ServerInstance, ServerConfig
+from integration_tests.llm.server_management import ServerInstance, ServerConfig
 
 from integration_tests.llm import device_settings
 from integration_tests.llm.logging_utils import start_log_group, end_log_group
