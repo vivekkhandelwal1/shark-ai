@@ -55,7 +55,6 @@ device_settings = {
 )
 def test_shortfin_benchmark(
     request_rate,
-    model_param_file_name,
     model_artifacts: ModelArtifacts,
     server,
     request,
