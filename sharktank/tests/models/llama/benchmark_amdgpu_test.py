@@ -649,56 +649,6 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     @pytest.mark.xfail(
         reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
     )
-    def testBenchmark70B_fp8_TP8_Decomposed(self):
-        output_file_name = self.dir_path_70b / "fp8_decomposed_tp8"
-        output_mlir = self.llama70b_fp8_decomposed_artifacts_tp8.create_file(
-            suffix=".mlir", prefix=output_file_name
-        )
-        output_json = self.llama70b_fp8_decomposed_artifacts_tp8.create_file(
-            suffix=".json", prefix=output_file_name
-        )
-        output_vmfb = self.llama70b_fp8_decomposed_artifacts_tp8.create_file(
-            suffix=".vmfb", prefix=output_file_name
-        )
-        output_shard_file_name = (
-            self.artifacts_dir
-            / f"f8/tp8/llama3.1_70b_fp8_tp{self.tensor_parallelism_size}_parameters.irpa"
-        )
-        if output_shard_file_name.exists():
-            self.llama70b_fp8_decomposed_artifacts_tp8.irpa_path = (
-                output_shard_file_name
-            )
-        export_return_code = self.llama70b_fp8_decomposed_artifacts_tp8.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
-        )
-        self.llama70b_fp8_decomposed_artifacts_tp8.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
-            hal_dump_path=output_file_name,
-            cwd=self.repo_root,
-            args=self.compile_args,
-        )
-        # benchmark prefill
-        self.llama70b_fp8_decomposed_artifacts_tp8.iree_benchmark_vmfb(
-            hip_device_id=self.iree_device,
-            vmfb_name=output_vmfb,
-            irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_prefill_args,
-            cwd=self.repo_root,
-        )
-        # benchmark decode
-        self.llama70b_fp8_decomposed_artifacts_tp8.iree_benchmark_vmfb(
-            hip_device_id=self.iree_device,
-            vmfb_name=output_vmfb,
-            irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_decode_args,
-            cwd=self.repo_root,
-        )
-
-    @pytest.mark.xfail(
-        reason="70b fp8 irpa does not exist", strict=True, raises=ExportMlirException
-    )
     def testBenchmark70B_fp8_TP8(self):
         output_file_name = self.dir_path_70b / "fp8_torch"
         output_mlir = self.llama70b_fp8_torch_sdpa_artifacts.create_file(
@@ -712,7 +662,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
         output_shard_file_name = (
             self.artifacts_dir
-            / f"f8/tp8/llama3.1_70b_fp8_tp{self.tensor_parallelism_size}_parameters.irpa"
+            / f"f8/tp8/llama3.1_70b_fp8_tp{self.llama70b_fp8_torch_sdpa_artifacts.tensor_parallelism_size}_parameters.irpa"
         )
         if output_shard_file_name.exists():
             self.llama70b_fp8_torch_sdpa_artifacts.irpa_path = output_shard_file_name
@@ -823,7 +773,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
                 "--benchmark_repetitions=3",
             ]
         )
-        self.iree_run_prefill_nondecomposed_args_2048_f16_tp8 = (
+        self.iree_run_prefill_args_2048_f16_tp8 = (
             [
                 "--function=prefill_bs4",
                 f"--input=@{self.prefill_args_bs4_2048_f16_tp8}/tokens.npy",
@@ -875,7 +825,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     @pytest.mark.xfail(
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
-    def testBenchmark405B_f16_TP8_Non_Decomposed_Input_Len_128(self):
+    def testBenchmark405B_f16_TP8_Input_Len_128(self):
         output_file_name = self.dir_path_405b / "f16_torch_128_tp8"
         output_mlir = self.llama405b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -923,7 +873,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     @pytest.mark.xfail(
         reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
     )
-    def testBenchmark405B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
+    def testBenchmark405B_f16_TP8_Input_Len_2048(self):
         output_file_name = self.dir_path_405b / "f16_torch_2048_tp8"
         output_mlir = self.llama405b_f16_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
@@ -971,55 +921,7 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     @pytest.mark.xfail(
         reason="KeyError in theta.py", strict=True, raises=ExportMlirException
     )
-    def testBenchmark405B_fp8_TP8_Decomposed(self):
-        output_file_name = self.dir_path_405b / "fp8_decomposed"
-        output_mlir = self.llama405b_fp8_decomposed_artifacts.create_file(
-            suffix=".mlir", prefix=output_file_name
-        )
-        output_json = self.llama405b_fp8_decomposed_artifacts.create_file(
-            suffix=".json", prefix=output_file_name
-        )
-        output_vmfb = self.llama405b_fp8_decomposed_artifacts.create_file(
-            suffix=".vmfb", prefix=output_file_name
-        )
-        output_shard_file_name = (
-            self.artifacts_dir
-            / f"f8/tp8/llama3.1_405b_fp8_tp{self.tensor_parallelism_size}_parameters.irpa"
-        )
-        if output_shard_file_name.exists():
-            self.llama405b_fp8_decomposed_artifacts.irpa_path = output_shard_file_name
-        export_return_code = self.llama405b_fp8_decomposed_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
-        )
-        self.llama405b_fp8_decomposed_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
-            hal_dump_path=output_file_name,
-            cwd=self.repo_root,
-            args=self.compile_args,
-        )
-        # benchmark prefill
-        self.llama405b_fp8_decomposed_artifacts.iree_benchmark_vmfb(
-            hip_device_id=self.iree_device,
-            vmfb_name=output_vmfb,
-            irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_prefill_args,
-            cwd=self.repo_root,
-        )
-        # benchmark decode
-        self.llama405b_fp8_decomposed_artifacts.iree_benchmark_vmfb(
-            hip_device_id=self.iree_device,
-            vmfb_name=output_vmfb,
-            irpa_path=self.irpa_path_fp8,
-            args=self.iree_run_decode_args,
-            cwd=self.repo_root,
-        )
-
-    @pytest.mark.xfail(
-        reason="KeyError in theta.py", strict=True, raises=ExportMlirException
-    )
-    def testBenchmark405B_fp8_TP8_Non_Decomposed(self):
+    def testBenchmark405B_fp8_TP8(self):
         output_file_name = self.dir_path_405b / "fp8_torch"
         output_mlir = self.llama405b_fp8_torch_sdpa_artifacts.create_file(
             suffix=".mlir", prefix=output_file_name
