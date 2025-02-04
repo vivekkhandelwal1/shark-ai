@@ -177,18 +177,25 @@ jobs:
         run: |
           pytest -v app_tests/benchmark_tests/llm/sglang_benchmarks/sglang_benchmark_test.py --port 30000 --log-cli-level=INFO --html=sglang_index.html --self-contained-html
 
+      - name: Upload pytest report
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: sglang_benchmark
+          path: sglang_index.html
+
+  # Ensure that the container is always cleaned up after job
+  container_cleanup:
+    needs: benchmark_sglang
+    name: "Docker Cleanup"
+    if: always()
+    runs-on: mi300x-3
+    steps:
       - name: Stop sglang-server
         run: docker stop sglang-server || true # Stop container if it's running
 
       # Deleting image after run due to large disk space requirement (83 GB)
       - name: Cleanup SGLang Image
         run: docker image rm lmsysorg/sglang:v0.3.5.post1-rocm620
-
-      - name: Upload pytest report
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
-        with:
-          name: sglang_benchmark
-          path: sglang_index.html
 
   merge_and_upload_reports:
     name: "Merge and upload benchmark reports"
