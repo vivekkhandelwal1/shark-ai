@@ -41,7 +41,7 @@ class DispatchTuner(DispatchParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
-        problem_size: ProblemSize,
+        problem_size: Optional[ProblemSize],
     ) -> ir.Module:
         """Generate a transform dialect spec that applies the compilation info attr."""
         pass
@@ -67,7 +67,7 @@ class ContractionOpInterfaceTuner(DispatchTuner, ContractionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
-        problem_size: ProblemSize,
+        problem_size: Optional[ProblemSize],
     ) -> ir.Module:
         contraction_op: ir.Operation = self.get_contraction_operation(ir_module)
         lhs_type = ir.ShapedType(contraction_op.operands[0].type)
@@ -88,8 +88,10 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         self,
         ir_module: ir.Module,
         compilation_info: iree_codegen.CompilationInfoAttr,
-        problem_size: ProblemSize,
+        problem_size: Optional[ProblemSize],
     ) -> ir.Module:
+        assert problem_size, "Problem size not found"
+
         conv_op: ir.Operation = self.get_conv_operation(ir_module)
         lhs_type = ir.ShapedType(conv_op.operands[0].type)
         rhs_type = ir.ShapedType(conv_op.operands[1].type)

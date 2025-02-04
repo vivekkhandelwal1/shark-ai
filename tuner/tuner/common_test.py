@@ -125,6 +125,10 @@ def test_get_compatible_mfma_intrinsics(tuner_ctx: common.TunerContext) -> None:
             common.ShapedType([2048, 1280], tuner_ctx.type.f32),
             common.DispatchKind.contraction,
             common.ContractionDimensions([0], [1], [2]),
+            None,
+            None,
+            None,
+            None,
         ),
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
@@ -145,6 +149,10 @@ def test_get_compatible_mfma_intrinsics(tuner_ctx: common.TunerContext) -> None:
             common.ShapedType([2048, 1280], tuner_ctx.type.i32),
             common.DispatchKind.contraction,
             common.ContractionDimensions([0], [1], [2]),
+            None,
+            None,
+            None,
+            None,
         ),
         [
             iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
@@ -166,6 +174,10 @@ def test_get_compatible_mfma_intrinsics(tuner_ctx: common.TunerContext) -> None:
                 common.ShapedType([64, 968, 320], tuner_ctx.type.f32),
                 common.DispatchKind.contraction,
                 common.ContractionDimensions([1], [2], [3], [0]),
+                None,
+                None,
+                None,
+                None,
             ),
             [
                 iree_gpu.MMAIntrinsic.MFMA_F32_16x16x16_F16,
