@@ -127,6 +127,25 @@ class ContractionDimensions:
 
 @dataclass
 class ConvolutionDimensions:
+    """
+    Stores which dimensions of the iteration space belong to the convolution.
+    For example, the following is a simple nhwc_fhwc conv:
+    linalg.generic ... indexing_maps = [
+        affine_map<(b, oh, ow, oc, fh, fw, ic) -> (b, ih, iw, ic)>,
+        affine_map<(b, oh, ow, oc, fh, fw, ic) -> (oc, fh, fw, ic)>,
+        affine_map<(b, oh, ow, oc, fh, fw, ic) -> (b, oh, ow, oc)>,
+        ]
+    The ConvolutionDimensions would be:
+    batch = [0]
+    outputImage = [1, 2]
+    outputChannel = [3]
+    filterLoop = [4, 5]
+    inputChannel = [6]
+    depth = []
+    strides = [1, 1]
+    dilations = [1, 1]
+    """
+
     batch: list[int] = field(default_factory=list)
     outputImage: list[int] = field(default_factory=list)
     outputChannel: list[int] = field(default_factory=list)
@@ -139,15 +158,39 @@ class ConvolutionDimensions:
 
 @dataclass
 class ProblemSize:
+    """
+    Represents a problem size for a contraction or convolution operation. When it is
+    a convolution the lhs_expr_dims, rhs_expr_dims, res_expr_dims and conv_dims are required to be set.
+
+    For example, the following is a simple convolution:
+    %conv = linalg.conv_2d_nhwc_hwcf
+        {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>}
+        ins(%6, %7 : tensor<2x62x66x960xf16>, tensor<3x3x960x640xf16>)
+        outs(%13 : tensor<2x60x64x640xf32>) -> tensor<2x60x64x640xf32>
+
+    The ProblemSize would be:
+    matmul_size = ContractionSizes(M=[2, 60, 64], N=[640], K=[3, 3, 960], B=[]),
+    lhs_type = ShapedType(shape=[2, 62, 66, 960], element_type=F16Type(f16)),
+    rhs_type = ShapedType(shape=[3, 3, 960, 640], element_type=F16Type(f16)),
+    res_type = ShapedType(shape=[2, 60, 64, 640], element_type=F32Type(f32)),
+    dispatch_kind = DispatchKind.conv
+    contraction_dims = ContractionDimensions(m=[0, 1, 2], n=[3], k=[4, 5, 6], batch=[]),
+    lhs_expr_dims = [[0], [1, 4], [2, 5], [6]],
+    rhs_expr_dims = [[4], [5], [6], [3]],
+    res_expr_dims = [[0], [1], [2], [3]],
+    conv_dims = ConvolutionDimensions(...)
+
+    """
+
     matmul_size: ContractionSizes
     lhs_type: ShapedType
     rhs_type: ShapedType
     res_type: ShapedType
     dispatch_kind: DispatchKind
     contraction_dims: ContractionDimensions
-    lhs_dims: Optional[list[list[int]]]
-    rhs_dims: Optional[list[list[int]]]
-    res_dims: Optional[list[list[int]]]
+    lhs_expr_dims: Optional[list[list[int]]] = None
+    rhs_expr_dims: Optional[list[list[int]]] = None
+    res_expr_dims: Optional[list[list[int]]] = None
     conv_dims: Optional[ConvolutionDimensions] = None
 
     @property
@@ -271,10 +314,17 @@ class ConvDimInfo:
         res_shaped_type: ShapedType,
         res_dims: Optional[list[list[int]]],
         conv_dims: Optional[ConvolutionDimensions],
-    ):
+    ) -> "ConvDimInfo":
         assert rhs_dims is not None, "no rhs dimensions"
         assert res_dims is not None, "no result dimensions"
         assert conv_dims is not None, "no convolution dimensions"
+        assert len(conv_dims.filterLoop) == 2, "only 2 filter loops supported"
+        assert len(conv_dims.outputChannel) == 1, "only 1 output channel supported"
+        assert len(conv_dims.inputChannel) == 1, "only 1 input channel supported"
+        assert len(conv_dims.batch) == 1, "only 1 batch dimension supported"
+        assert (
+            len(conv_dims.outputImage) == 2
+        ), "only 2 output image dimensions supported"
 
         rhs_shape = rhs_shaped_type.shape
         filter_dict = {
@@ -297,9 +347,9 @@ class ConvDimInfo:
     def from_problem_size(problem_size: ProblemSize):
         return ConvDimInfo.from_rhs_res(
             problem_size.rhs_type,
-            problem_size.rhs_dims,
+            problem_size.rhs_expr_dims,
             problem_size.res_type,
-            problem_size.res_dims,
+            problem_size.res_expr_dims,
             problem_size.conv_dims,
         )
 

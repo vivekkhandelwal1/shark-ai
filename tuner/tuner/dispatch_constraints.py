@@ -352,45 +352,48 @@ def adjust_problem_size_for_pipeline(
     if (
         codegen_pipeline != iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
         or problem_size.dispatch_kind != DispatchKind.conv
-        or problem_size.rhs_dims is None
+        or problem_size.rhs_expr_dims is None
     ):
         return
     pipeline_options_search_space.use_igemm_convolution = [True]
 
-    k_group = set(problem_size.contraction_dims.k)
-    rhs_dims = problem_size.rhs_dims
-    k_contraction_dims = []
-    k_contraction_dim_current = []
+    k_contraction_dims = set(problem_size.contraction_dims.k)
+    rhs_result_expr_dim_sets = problem_size.rhs_expr_dims
+    collapseable_k_groups = []
+    current_collapseable_k_group = []
     # Iterate through the filter shape. For each dimension, check if it is in the
-    # K contraction dimensions. If it is, add it to the current contraction_dim
-    for dim in rhs_dims:
-        element = dim[0]
-        if element in k_group:
-            k_contraction_dim_current.append(element)
+    # K contraction dimensions. If it is, add it to the current contraction_dim.
+    for rhs_result_expr_dim_set in rhs_result_expr_dim_sets:
+        rhs_collapseable_expr_dim = rhs_result_expr_dim_set[0]
+        if rhs_collapseable_expr_dim in k_contraction_dims:
+            current_collapseable_k_group.append(rhs_collapseable_expr_dim)
         else:
-            # If the first element is not in the K contraction dims, then the
+            # If the previous element is not in the K contraction dims, then the
             # current contraction dim might still be empty. Skip it in this case.
-            if k_contraction_dim_current:
-                k_contraction_dims.append(k_contraction_dim_current)
-                k_contraction_dim_current = []
+            if current_collapseable_k_group:
+                collapseable_k_groups.append(current_collapseable_k_group)
+                current_collapseable_k_group = []
 
-    # Append the last contraction dim if it exists
-    if k_contraction_dim_current:
-        k_contraction_dims.append(k_contraction_dim_current)
+    # Append the last contraction dim if it exists.
+    if current_collapseable_k_group:
+        collapseable_k_groups.append(current_collapseable_k_group)
 
-    # Reset the contraction dims and matmul sizes using the new K contraction dims
-    k_start = problem_size.contraction_dims.k[0]
-    k_index_dict = {dim[0]: i for i, dim in enumerate(rhs_dims)}
+    # Reset the contraction dims and matmul sizes using the new K contraction dims.
+    k_contraction_dims_start = problem_size.contraction_dims.k[0]
+    k_index_dict = {
+        rhs_result_expr_dim_set[0]: i
+        for i, rhs_result_expr_dim_set in enumerate(rhs_result_expr_dim_sets)
+    }
     filter_shape = problem_size.rhs_type.shape
     problem_size.contraction_dims.k = []
     problem_size.matmul_size.K = []
-    for contraction_dim in k_contraction_dims:
-        problem_size.contraction_dims.k.append(k_start)
-        dim_indexes = [k_index_dict[dim] for dim in contraction_dim]
+    for current_collapseable_k_group in collapseable_k_groups:
+        problem_size.contraction_dims.k.append(k_contraction_dims_start)
+        dim_indexes = [k_index_dict[dim] for dim in current_collapseable_k_group]
         filter_shapes = [filter_shape[index] for index in dim_indexes]
         collapsed_dim_size = math.prod(filter_shapes)
         problem_size.matmul_size.K.append(collapsed_dim_size)
-        k_start += 1
+        k_contraction_dims_start += 1
 
 
 def generate_solutions(

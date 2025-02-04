@@ -93,9 +93,9 @@ class GenericOpMatcher(NamedOpMatcher):
 
         maps_attr = None
         for attr in op.opview.attributes:
-            if (
-                attr.name == "indexing_maps"
-                or attr.name == "linalg.memoized_indexing_maps"
+            if attr.name in (
+                "indexing_maps",
+                "linalg.memoized_indexing_maps",
             ) and isinstance(attr.attr, ir.ArrayAttr):
                 maps_attr = attr.attr
         if maps_attr is None:
@@ -297,9 +297,9 @@ class ConvolutionOpInterfaceMatcher(GenericOpMatcher):
         ]
         self.op_names.extend(self.supported_named_ops)
         self.convolution_dimensions: Optional[ConvolutionDimensions] = None
-        self.lhs_dims: Optional[list[list[int]]] = None
-        self.rhs_dims: Optional[list[list[int]]] = None
-        self.res_dims: Optional[list[list[int]]] = None
+        self.lhs_expr_dims: Optional[list[list[int]]] = None
+        self.rhs_expr_dims: Optional[list[list[int]]] = None
+        self.res_expr_dims: Optional[list[list[int]]] = None
 
     def match_operands(self, operands: ir.OpOperandList) -> bool:
         if len(operands) != 3:
@@ -320,7 +320,7 @@ class ConvolutionOpInterfaceMatcher(GenericOpMatcher):
         conv_dims, lhs_dims, rhs_dims, res_dims = conv_dim_info
         self.convolution_dimensions = conv_dims
 
-        self.lhs_dims = lhs_dims
-        self.rhs_dims = rhs_dims
-        self.res_dims = res_dims
+        self.lhs_expr_dims = lhs_dims
+        self.rhs_expr_dims = rhs_dims
+        self.res_expr_dims = res_dims
         return True

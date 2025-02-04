@@ -97,12 +97,9 @@ class ConvolutionOpInterfaceTuner(DispatchTuner, ConvolutionOpInterfaceParser):
         rhs_type = ir.ShapedType(conv_op.operands[1].type)
         acc_type = ir.ShapedType(conv_op.operands[2].type)
 
-        M = [mDim for mDim in problem_size.matmul_size.M]
-        M_str = "x".join([str(mDim) for mDim in M])
-        N = [nDim for nDim in problem_size.matmul_size.N]
-        N_str = "x".join([str(nDim) for nDim in N])
-        K = [kDim for kDim in problem_size.matmul_size.K]
-        K_str = "x".join([str(kDim) for kDim in K])
+        M_str = "x".join([str(mDim) for mDim in problem_size.matmul_size.M])
+        N_str = "x".join([str(nDim) for nDim in problem_size.matmul_size.N])
+        K_str = "x".join([str(kDim) for kDim in problem_size.matmul_size.K])
 
         conv_type = conv_op.name.split(".")[-1]
         # TODO(Max191): Get the function name from the func.func in the input module.

@@ -43,10 +43,6 @@ def test_generate_solutions(tuner_ctx: common.TunerContext) -> None:
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     configs = dispatch_constraints.generate_solutions(
         tuner_ctx,
@@ -76,10 +72,6 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -96,10 +88,6 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -116,10 +104,6 @@ def test_calculate_shared_memory_usage_in_bytes(tuner_ctx: common.TunerContext) 
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     assert (
         dispatch_constraints.calculate_shared_memory_usage_in_bytes(
@@ -162,10 +146,6 @@ def test_adjust_problem_size_for_pipeline(
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     pipeline_options_space = dispatch_constraints.PipelineOptionsSearchSpace(
         prefetch_shared_memory=[True],
@@ -299,10 +279,6 @@ def test_generate_tile_and_fuse_constraints_valid_input(
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     # Define input parameters as z3 Ints
     m, n, k = (
@@ -375,10 +351,6 @@ def test_generate_tile_and_fuse_constraints_invalid_input(
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     # Define input parameters as z3 Ints
     m, n, k = (
@@ -441,10 +413,6 @@ def test_generate_vector_distribute_constraints_valid_input(
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     # Define input parameters as z3 Ints
     m, n, k = (
@@ -503,10 +471,6 @@ def test_generate_vector_distribute_constraints_invalid_input(
         res_type,
         common.DispatchKind.contraction,
         contraction_dims,
-        None,
-        None,
-        None,
-        None,
     )
     m, n, k = (
         [z3.Int("m")],
