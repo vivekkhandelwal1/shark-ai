@@ -352,9 +352,10 @@ def adjust_problem_size_for_pipeline(
     if (
         codegen_pipeline != iree_codegen.DispatchLoweringPassPipeline.LLVMGPUTileAndFuse
         or problem_size.dispatch_kind != DispatchKind.conv
-        or problem_size.rhs_expr_dims is None
     ):
         return
+    assert problem_size.rhs_expr_dims is not None
+
     pipeline_options_search_space.use_igemm_convolution = [True]
 
     k_contraction_dims = set(problem_size.contraction_dims.k)
@@ -380,6 +381,8 @@ def adjust_problem_size_for_pipeline(
 
     # Reset the contraction dims and matmul sizes using the new K contraction dims.
     k_contraction_dims_start = problem_size.contraction_dims.k[0]
+    assert k_contraction_dims_start == 4, "We assume k dims are innermost."
+
     k_index_dict = {
         rhs_result_expr_dim_set[0]: i
         for i, rhs_result_expr_dim_set in enumerate(rhs_result_expr_dim_sets)

@@ -160,7 +160,8 @@ class ConvolutionDimensions:
 class ProblemSize:
     """
     Represents a problem size for a contraction or convolution operation. When it is
-    a convolution the lhs_expr_dims, rhs_expr_dims, res_expr_dims and conv_dims are required to be set.
+    a convolution all fields including: contraction_dims, lhs_expr_dims, rhs_expr_dims,
+    res_expr_dims and conv_dims are required to be set.
 
     For example, the following is a simple convolution:
     %conv = linalg.conv_2d_nhwc_hwcf
@@ -174,7 +175,16 @@ class ProblemSize:
     rhs_type = ShapedType(shape=[3, 3, 960, 640], element_type=F16Type(f16)),
     res_type = ShapedType(shape=[2, 60, 64, 640], element_type=F32Type(f32)),
     dispatch_kind = DispatchKind.conv
+
+    # The contraction_dims field is intuitive for gemms. For convolutions, it recorded the convolution
+    # dimension to contraction dimension mapping. In igemm setting:
+    # - [d0, d1, d2] map to [b, oh, ow], or m dimension of the gemm
+    # - [d3] map to [oc], or n dimension of the gemm
+    # - [d4, d5, d6] map to [fh, fw, ic], or k dimension of the gemm
     contraction_dims = ContractionDimensions(m=[0, 1, 2], n=[3], k=[4, 5, 6], batch=[]),
+
+    # *expr_dims fields represent the dimensions that appear in the affine map result expressions at
+    # each dimension of the operator tensor.
     lhs_expr_dims = [[0], [1, 4], [2, 5], [6]],
     rhs_expr_dims = [[4], [5], [6], [3]],
     res_expr_dims = [[0], [1], [2], [3]],
