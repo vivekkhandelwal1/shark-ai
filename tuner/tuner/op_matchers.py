@@ -293,7 +293,7 @@ class ConvolutionOpInterfaceMatcher(GenericOpMatcher):
         super().__init__()
         self.supported_named_ops = [
             "linalg.conv_2d_nhwc_hwcf",
-            "linalg.conv_2d_nhwc_hwfc",
+            "linalg.conv_2d_nhwc_fhwc",
         ]
         self.op_names.extend(self.supported_named_ops)
         self.convolution_dimensions: Optional[ConvolutionDimensions] = None

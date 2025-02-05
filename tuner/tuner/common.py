@@ -131,7 +131,7 @@ class ConvolutionDimensions:
     Stores which dimensions of the iteration space belong to the convolution.
     For example, the following is a simple nhwc_fhwc conv:
     linalg.generic ... indexing_maps = [
-        affine_map<(b, oh, ow, oc, fh, fw, ic) -> (b, ih, iw, ic)>,
+        affine_map<(b, oh, ow, oc, fh, fw, ic) -> (b, oh + fh, ow + fw, ic)>,
         affine_map<(b, oh, ow, oc, fh, fw, ic) -> (oc, fh, fw, ic)>,
         affine_map<(b, oh, ow, oc, fh, fw, ic) -> (b, oh, ow, oc)>,
         ]
