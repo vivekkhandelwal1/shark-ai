@@ -98,7 +98,7 @@ class GenerateService:
             self.inference_functions[idx] = {}
 
         # Scope dependent objects.
-        self.batcher = BatcherProcess(self)
+        # self.batcher = BatcherProcess(self)
 
     def equip_fiber(self, fiber, idx, worker_idx):
         MetaFiber = namedtuple(
@@ -192,10 +192,11 @@ class GenerateService:
                 ] = self.inference_programs[worker_idx]["vae"][
                     f"{self.model_params.vae_module_name}.decode"
                 ]
-        self.batcher.launch()
+        #self.batcher.launch()
 
     def shutdown(self):
-        self.batcher.shutdown()
+        #self.batcher.shutdown()
+        pass
 
     def __repr__(self):
         modules = [
