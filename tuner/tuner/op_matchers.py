@@ -69,10 +69,9 @@ class NamedOpMatcher(OpMatcher):
         return op.name in self.op_names
 
 
-# TODO(Max191): Add logic to match the body of the generic op.
-class GenericOpMatcher(NamedOpMatcher):
-    def __init__(self):
-        super().__init__(["linalg.generic"])
+class LinalgOpMatcher(NamedOpMatcher):
+    def __init__(self, op_names: list[str]) -> None:
+        super().__init__(op_names)
 
     @abstractmethod
     def match_operands(self, operands: ir.OpOperandList) -> bool:
@@ -110,6 +109,12 @@ class GenericOpMatcher(NamedOpMatcher):
         return True
 
 
+# TODO(Max191): Add logic to match the body of the generic op.
+class GenericOpMatcher(LinalgOpMatcher):
+    def __init__(self):
+        super().__init__(["linalg.generic"])
+
+
 def get_map_result_dim_positions(map: ir.AffineMap):
     exprs = []
     if not map.is_projected_permutation:
@@ -127,6 +132,8 @@ def get_map_result_dim_positions(map: ir.AffineMap):
     return exprs
 
 
+# TODO: Replace this function with a call to MLIR python bindings for linalg::inferConvolutionDims
+# once the particular python binding is exposed
 def get_convolution_dims(
     lhs_map: ir.AffineMap, rhs_map: ir.AffineMap, res_map: ir.AffineMap
 ):
