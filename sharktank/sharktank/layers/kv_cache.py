@@ -128,6 +128,7 @@ class PagedKVCache:
             ops.flatten(shard, start_dim=1) for shard in sharded_page_table.shards
         ]
         flat_sharded_page_table = SplitPrimitiveTensor(ts=shards, shard_dim=1)
+        print('shard_state inside', type(flat_sharded_page_table))
         return [flat_sharded_page_table]
 
     @property

@@ -94,6 +94,7 @@ class ShardedLlamaTest(unittest.TestCase):
         seq_block_ids = torch.arange(
             self.batch_size * batch_seq_len // self.config.block_seq_stride
         ).view(self.batch_size, -1)
+        print('shard_count', model.cache.shard_count)
         cache_state = model.cache.allocate(page_count=self.cache_page_count)
         cache_state = [torch.rand_like(cache_state[0])]
         return OrderedDict(
@@ -109,6 +110,10 @@ class ShardedLlamaTest(unittest.TestCase):
         self, model: PagedLlamaModelV1, sharded_model: PagedLlamaModelV1
     ) -> Tuple[OrderedDict[str, Any], OrderedDict[str, Any]]:
         prefill_kwargs = self.make_prefill_args(model)
+        print('shard_count1', model.cache.shard_count)
+        print('shard_count2', sharded_model.cache.shard_count)
+        
+        
         sharded_cache_state = sharded_model.cache.allocate(
             page_count=self.cache_page_count
         )
@@ -116,18 +121,27 @@ class ShardedLlamaTest(unittest.TestCase):
             prefill_kwargs["cache_state"][0].shape, sharded_cache_state[0].shape
         )
         sharded_prefill_kwargs = deepcopy(prefill_kwargs)
+        
+        print('cache before', sharded_prefill_kwargs["cache_state"][0].shape, type(sharded_prefill_kwargs["cache_state"][0]))
+
         sharded_cache_state = sharded_model.cache.shard_state(
             sharded_prefill_kwargs["cache_state"]
         )
         sharded_prefill_kwargs["cache_state"] = sharded_cache_state
 
+        print('cache after', sharded_prefill_kwargs["cache_state"][0].shape, type(sharded_prefill_kwargs["cache_state"][0]))
+
         sharding = sharded_model.config.tensor_parallelism_size
         for k in sharded_prefill_kwargs:
+            print(k)
             if k == "cache_state":
                 continue
+            print('before', prefill_kwargs[k].shape, type(prefill_kwargs[k]))
             sharded_prefill_kwargs[k] = ops.replicate(
                 sharded_prefill_kwargs[k], count=sharding
             )
+            print('after', prefill_kwargs[k].shape, type(prefill_kwargs[k]))
+            
 
         return prefill_kwargs, sharded_prefill_kwargs
 

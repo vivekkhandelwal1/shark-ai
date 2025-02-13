@@ -191,9 +191,12 @@ def prepare_iree_module_function_args(
     All unsharded tensors go on device 0.
     """
     res = []
+    print('args', len(args))
     for arg in args:
+        print('arg', type(arg), arg.shape if not isinstance(arg, List) else None)
         if isinstance(arg, ShardedTensor):
             assert len(devices) == len(arg.shards)
+            print('here shard', isinstance(arg, ShardedTensor))
             res.extend(
                 [
                     prepare_iree_module_function_args([shard], [device])[0]
@@ -201,6 +204,7 @@ def prepare_iree_module_function_args(
                 ]
             )
         elif isinstance(arg, (DefaultPrimitiveTensor, torch.Tensor)):
+            print('here', arg.shape if not isinstance(arg, List) else None)
             res.append(torch_tensor_to_device_array(arg, devices[0]))
         else:
             assert isinstance(arg, collections.abc.Sequence)
