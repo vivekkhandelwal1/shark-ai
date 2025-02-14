@@ -192,10 +192,11 @@ class GenerateService:
                 ] = self.inference_programs[worker_idx]["vae"][
                     f"{self.model_params.vae_module_name}.decode"
                 ]
-        self.batcher.launch()
+        #self.batcher.launch()
 
     def shutdown(self):
-        self.batcher.shutdown()
+        #self.batcher.shutdown()
+        
 
     def __repr__(self):
         modules = [
