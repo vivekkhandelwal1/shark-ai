@@ -13,6 +13,7 @@ import os
 import shortfin.array as sfnp
 import copy
 import re
+import gc
 
 from shortfin_apps.sd.components.config_struct import ModelParams
 <<<<<<< HEAD
@@ -124,7 +125,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
     )
     if model_params.use_scheduled_unet:
         denoise_dict = {
-            "unet": "scheduled_unet",
+            "scheduled_unet": "scheduled_unet",
         }
     elif model_params.use_i8_punet:
         denoise_dict = {
@@ -150,9 +151,9 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         for bs in model_params.batch_sizes[mod]:
             bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
-        if mod in ["unet", "clip"]:
+        if mod in ["scheduled_unet", "unet", "clip"]:
             ord_params.extend([[str(model_params.max_seq_len)]])
-        if mod in ["unet", "vae", "scheduler"]:
+        if mod in ["scheduled_unet", "unet", "vae", "scheduler"]:
             dims = []
             for dim_pair in model_params.dims:
                 dim_pair_str = [str(d) for d in dim_pair]
@@ -386,10 +387,14 @@ def sdxl(
                     precision,
                     max_length,
                 ) = parse_mlir_name(mlir_path)
+                if "scheduled_unet" in mlir_path:
+                    model_key = "scheduled_unet"
+                else:
+                    model_key = model
                 turbine_generate(
                     export_sdxl_model,
                     hf_model_name=model_params.base_model_name,
-                    component=model,
+                    component=model_key,
                     batch_size=batch_size,
                     height=height,
                     width=width,
@@ -399,7 +404,7 @@ def sdxl(
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
                     name=mlir_path.split(".mlir")[0],
-                    out_of_process=True,
+                    out_of_process=(not "schedule" in model),
                 )
             else:
                 get_cached(mlir_path, ctx, FileNamespace.GEN)
@@ -421,7 +426,7 @@ def sdxl(
         for idx, f in enumerate(copy.deepcopy(vmfb_filenames)):
             # We return .vmfb file stems for the compile builder.
             file_stem = "_".join(f.split("_")[:-1])
-            if needs_compile(file_stem, target, ctx):
+            if needs_compile(file_stem, target, ctx) or force_update:
                 for mlirname in mlir_filenames:
                     if file_stem in mlirname:
                         mlir_source = mlirname
