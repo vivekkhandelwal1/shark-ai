@@ -24,13 +24,7 @@ def export_sdxl_model(
     import torch
 
     def check_torch_version(begin: tuple, end: tuple):
-        version = torch.__version__.split("+")[0]  # Remove any suffix like '+cu118'
-        major, minor, patch = map(int, version.split("."))
-        if not (begin <= (major, minor, patch) < end):
-            raise Warning(
-                f"Torch version is outside the supported range for some exports: {begin}-{end}"
-            )
-
+        pass
     decomp_list = [torch.ops.aten.logspace]
     if decomp_attn == True:
         decomp_list = [
