@@ -264,7 +264,7 @@ def get_modules(args, model_config, flagfile, td_spec):
             f"--build-preference={args.build_preference}",
             f"--output-dir={args.artifacts_dir}",
             f"--model={modelname}",
-            f"--force-update=False",
+            f"--force-update={args.force_update}",
             f"--iree-hal-target-device={args.device}",
             f"--iree-hip-target={args.target}",
             f"--iree-compile-extra-args={ireec_extra_args}",
@@ -419,7 +419,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
     )
     parser.add_argument(
         "--force_update",
-        action="store_true",
+        default=False,
         help="Force update model artifacts starting from the specified build preference.",
     )
     args = parser.parse_args(argv)

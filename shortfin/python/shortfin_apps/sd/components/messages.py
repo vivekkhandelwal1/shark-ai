@@ -114,7 +114,13 @@ class InferenceExecRequest(sf.Message):
                 cb.input_ids[idx].copy_from(host_arrs[idx])
 
         # Same for noisy latents if they are explicitly provided as a numpy array.
-        if self.sample is not None:
+        if isinstance(self.sample, list):
+            sample_host = cb.sample.for_transfer()
+            for idx, i in enumerate(self.sample):
+                with sample_host.view(idx).map(discard=True) as m:
+                    m.fill(i.tobytes())
+            cb.sample.copy_from(sample_host)
+        elif self.sample is not None:
             sample_host = cb.sample.for_transfer()
             with sample_host.map(discard=True) as m:
                 m.fill(self.sample.tobytes())
@@ -143,6 +149,13 @@ class InferenceExecRequest(sf.Message):
 
     def post_init(self):
         """Determines necessary inference phases and tags them with static program parameters."""
+        if self.prompt is not None:
+            self.batch_size = len(self.prompt) if isinstance(self.prompt, list) else 1
+        elif self.input_ids is not None:
+            if isinstance(self.input_ids[0], list):
+                self.batch_size = len(self.input_ids)
+            else:
+                self.batch_size = 1
         for p in reversed(list(InferencePhase)):
             required, metadata = self.check_phase(p)
             p_data = {"required": required, "metadata": metadata}
