@@ -15,6 +15,7 @@ from ..kernels import (
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
+    mmt_block_scaled_f8,
     mmt_super_block_scaled_offset_q4_unsigned,
     bitcast_to_complex,
     bitcast_to_real,
@@ -23,6 +24,7 @@ from ..kernels import (
 from ..types import (
     BlockScaledLayout,
     BlockScaledI4Layout,
+    GenericBlockScaledLayout,
     PrimitiveTensor,
     QuantizedTensor,
     SuperBlockOffsetScaled_4_6_Layout,
@@ -73,15 +75,21 @@ def matmul_generic_tensor_block_scaled(
     struct. This may be fine for certain platforms but there is micro-optimization
     potential if specializing further to the packed layout.
     """
-    lhs = unbox_tensor(lhs)
     if not transpose_rhs:
         return NotImplemented
     layout = rhs.layout_type
-    if layout is not BlockScaledLayout:
-        return NotImplemented
-    rhs_unpacked = rhs.unpack()
-    assert rhs_unpacked.m is None, "NYI: Q8 block scaled with offset"
-    return mmt_block_scaled_q8(lhs, rhs_unpacked.d, rhs_unpacked.qs)
+    if layout is BlockScaledLayout:
+        rhs_unpacked = rhs.unpack()
+        assert rhs_unpacked.m is None, "NYI: Q8 block scaled with offset"
+        lhs = unbox_tensor(lhs)
+        return mmt_block_scaled_q8(lhs, rhs_unpacked.d, rhs_unpacked.qs)
+    if layout is GenericBlockScaledLayout:
+        assert lhs.layout_type is GenericBlockScaledLayout, "NYI: non-quantized lhs"
+        lhs_unpacked = lhs.unpack()
+        rhs_unpacked = rhs.unpack()
+        assert lhs_unpacked.z is None and rhs_unpacked.z is None, "NYI: F8 block scaled with offsets"
+        return mmt_block_scaled_f8(lhs_unpacked.q, rhs_unpacked.q, lhs_unpacked.scale, rhs_unpacked.scale)
+
 
 
 @matmul.override(Tensor, QuantizedTensor)

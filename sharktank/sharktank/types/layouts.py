@@ -34,6 +34,7 @@ from .layout_utils import (
 __all__ = [
     "BlockScaledI4Layout",
     "BlockScaledLayout",
+    "GenericBlockScaledLayout",
     "SuperBlockOffsetScaled_4_6_Layout",
     "TensorScaledLayout",
 ]
@@ -356,6 +357,114 @@ class BlockScaledI4Layout(BlockScaledLayout):
     def qs_bit_packed(self) -> torch.Tensor:
         return self._qs
 
+
+@register_quantized_layout
+class GenericBlockScaledLayout(QuantizedLayout):
+    """A general block-scaled quantization layout consisting of scale (`scale`),
+    and offset (`z`), per block in a higher precision type. The offset, if
+    present, is pre-scaled.
+
+    Let bls_j represent the block size in dimension j. Assume bls_j divides dj.
+    
+    The shapes of tensors:
+
+    * `q`     : [d0 // bls_0, bls_0, d1 // bls_1, bls_1, ...]
+    * `scale` : [d0 // bls_0, 1, d1 // bls_1, 1, ...]
+    * `z`     : [d0 // bls_0, 1, d1 // bls_1, 1, ...]
+
+    Dequantization formula on expanded tensors:
+
+    ```
+    result = q.to(dtype) * scale.to(dtype) + z.to(dtype)
+    ```
+
+    Note: the offset is optional.
+
+    """
+
+    def __init__(
+        self,
+        shape: list[int],
+        scale: torch.Tensor,
+        q: torch.Tensor,
+        *,
+        z: Optional[torch.Tensor] = None,
+    ):
+        self._shape = shape
+        self._scale = scale
+        self._z = z
+        self._q = q
+
+    @classmethod
+    def serialized_name(self) -> str:
+        return "GenericBlockScaledLayout"
+
+    @classmethod
+    def create(
+        cls,
+        shape: list[int],
+        metadata: dict[str, MetaDataValueType],
+        planes: dict[str, torch.Tensor],
+    ):
+        z = planes.get("z")
+        return cls(shape, planes["scale"], planes["q"], z=z)
+
+    @property
+    def planes(self) -> dict[str, torch.Tensor]:
+        p = {
+            "scale": self._scale,
+            "q": self._q,
+        }
+        if self._z is not None:
+            p["z"] = self._z
+        return p
+
+    @property
+    def shape(self) -> list[int]:
+        """The flattened shape of the logical (unblocked) result."""
+        return self._shape
+
+    @property
+    def scale(self) -> torch.Tensor:
+        """Per block scales."""
+        return self._scale
+
+    @property
+    def z(self) -> torch.Tensor:
+        """Per block offsets."""
+        return self._z
+
+    @property
+    def q(self) -> torch.Tensor:
+        """Quantized values."""
+        return self._q
+
+    def dequant(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
+        return self.dequant_blocked(dtype).reshape(self.shape)
+
+    def dequant_blocked(self, dtype: Optional[torch.dtype] = None) -> torch.Tensor:
+        scale = self.scale
+        z = self.z
+        q = self.q
+        if dtype:
+            scale = scale.to(dtype)
+            if z is not None:
+                z = z.to(dtype)
+        else:
+            dtype = scale.dtype
+            assert z is None or z.dtype == scale.dtype
+        scaled = scale * q.to(dtype)
+        shifted = scaled if z is None else scaled + z
+        return shifted
+
+    def __repr__(self):
+        r = (
+            f"{type(self).__name__}(scale({list(self.scale.shape)}, dtype={self.scale.dtype}), "
+            f"q({list(self.q.shape)}, dtype={self.q.dtype}))"
+        )
+        if self.m is not None:
+            r += f", z({list(self.z.shape)}, dtype={self.z.dtype})"
+        return r
 
 @register_quantized_layout
 class SuperBlockOffsetScaled_4_6_Layout(QuantizedLayout):

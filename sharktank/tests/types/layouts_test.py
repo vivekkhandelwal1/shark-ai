@@ -28,7 +28,7 @@ class BlockScaledLayoutTest(unittest.TestCase):
             [n, k],
             d=torch.empty(n, k // bs, 1, dtype=torch.float32),
             qs=torch.empty(n, k // bs, bs, dtype=torch.int8),
-            m=torch.empty(n, k // bs, bs, dtype=torch.float32),
+            m=torch.empty(n, k // bs, 1, dtype=torch.float32),
         )
 
         l_new = BlockScaledLayout.create(l.shape, l.metadata, l.planes)
@@ -62,6 +62,30 @@ class BlockScaledI4LayoutTest(unittest.TestCase):
         self.assertEqual(l.planes, l_new.planes)
         self.assertEqual(l.metadata, l_new.metadata)
         self.assertEqual(l.signed, l_new.signed)
+
+class GenericBlockScaledLayoutTest(unittest.TestCase):
+    def testRegistered(self):
+        self.assertIs(
+            GenericBlockScaledLayout,
+            REGISTERED_LAYOUT_CLASSES[GenericBlockScaledLayout.serialized_name()],
+        )
+
+    def testRoundtrip(self):
+        n = 128
+        k = 1024
+        bs = 32
+
+        l = GenericBlockScaledLayout(
+            [n, k],
+            scale=torch.empty(n // bs, 1, k // bs, 1, dtype=torch.float32),
+            q=torch.empty(n // bs, bs, k // bs, bs, dtype=torch.int8),
+            z=torch.empty(n // bs, 1, k // bs, 1, dtype=torch.float32),
+        )
+
+        l_new = GenericBlockScaledLayout.create(l.shape, l.metadata, l.planes)
+        self.assertEqual(l.shape, l_new.shape)
+        self.assertEqual(l.planes, l_new.planes)
+        self.assertEqual(l.metadata, l_new.metadata)
 
 
 class SuperBlockOffsetScaled_4_6_LayoutTest(unittest.TestCase):
