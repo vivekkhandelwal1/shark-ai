@@ -518,7 +518,7 @@ class InferenceExecutorProcess(sf.Process):
         ):
             start = time.time()
             step = cb.steps_arr.view(i)
-            if self.model_params.use_scheduled_unet:
+            if self.service.model_params.use_scheduled_unet:
                 logger.debug(
                     "INVOKE %r",
                     fns["run_forward"],
@@ -528,10 +528,11 @@ class InferenceExecutorProcess(sf.Process):
                     cb.prompt_embeds,
                     cb.text_embeds,
                     cb.time_ids,
-                    step,
                     cb.guidance_scale,
+                    step,
                     cb.timesteps,
                     cb.sigmas,
+                    fiber=self.fiber,
                 )
             else:
                 logger.debug(
