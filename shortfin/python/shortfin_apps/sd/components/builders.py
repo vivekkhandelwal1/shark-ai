@@ -208,6 +208,7 @@ def needs_file(filename, ctx, url=None, namespace=FileNamespace.GEN) -> bool:
         ctx.executor.all[filekey] = None
     except RuntimeError:
         return False
+
     if os.path.exists(out_file):
         if url and not is_valid_size(out_file, url):
             return True
@@ -339,6 +340,7 @@ def sdxl(
     ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
+    force_update = False if force_update not in ["True", True] else True
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
     update = needs_update(ctx, ARTIFACT_VERSION)
@@ -404,7 +406,7 @@ def sdxl(
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
                     name=mlir_path.split(".mlir")[0],
-                    out_of_process=(not "schedule" in model),
+                    out_of_process=True,
                 )
             else:
                 get_cached(mlir_path, ctx, FileNamespace.GEN)

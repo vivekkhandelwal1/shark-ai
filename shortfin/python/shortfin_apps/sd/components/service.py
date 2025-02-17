@@ -572,21 +572,34 @@ class InferenceExecutorProcess(sf.Process):
 
     async def _decode(self, device):
         req_bs = self.exec_request.batch_size
+        prog_bs = req_bs
         cb = self.exec_request.command_buffer
         # Decode latents to images
         entrypoints = self.service.inference_functions[self.worker_index]["decode"]
-        assert req_bs in list(entrypoints.keys())
+        if req_bs not in list(entrypoints.keys()):
+            prog_bs = 1
         for bs, fns in entrypoints.items():
-            if bs == req_bs:
+            if bs == prog_bs:
                 break
-
-        # Decode the denoised latents.
-        logger.debug(
-            "INVOKE %r: %s",
-            fns["decode"],
-            "".join([f"\n  0: {cb.latents.shape}"]),
-        )
-        (cb.images,) = await fns["decode"](cb.latents, fiber=self.fiber)
+            raise RuntimeError(f"Decode program batch size {prog_bs} not found.")
+        if req_bs != prog_bs:
+            for i in range(req_bs):
+                # Decode the denoised latents.
+                logger.debug(
+                    "INVOKE %r: %s",
+                    fns["decode"],
+                    "".join([f"\n  0: {cb.latents.shape}"]),
+                )
+                res = cb.images.view(i)
+                (res,) = await fns["decode"](cb.latents.view(i), fiber=self.fiber)
+                cb.images.view(i).copy_from(res)
+        else:
+            logger.debug(
+                "INVOKE %r: %s",
+                fns["decode"],
+                "".join([f"\n  0: {cb.latents.shape}"]),
+            )
+            (cb.images,) = await fns["decode"](cb.latents, fiber=self.fiber)
         cb.images_host.copy_from(cb.images)
 
         # Wait for the device-to-host transfer, so that we can read the
@@ -598,7 +611,7 @@ class InferenceExecutorProcess(sf.Process):
         if cb.images_host.dtype == sfnp.float16:
             dtype = np.float16
         self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
-            req_bs,
+            self.exec_request.batch_size,
             3,
             self.exec_request.height,
             self.exec_request.width,
@@ -671,7 +684,7 @@ def initialize_command_buffer(fiber, model_params: ModelParams, bs: int = 1):
             device, [bs, 6], model_params.unet_dtype
         ),
         "guidance_scale": sfnp.device_array.for_device(
-            device, [bs], model_params.unet_dtype
+            device, [1], model_params.unet_dtype
         ),
         # VAE
         "images": sfnp.device_array.for_device(
