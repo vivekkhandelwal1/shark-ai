@@ -90,8 +90,6 @@ class mmt_block_scaled_f8_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        with open("/home/zjgar/code/shark-ai/sharktank/something.mlir", "w") as f:
-            f.write(asm)
         self.assertIn("@sharktank_mmt_block_scaled_f8_2d_256_128_256_128_3200_128_f32", asm)
 
 
