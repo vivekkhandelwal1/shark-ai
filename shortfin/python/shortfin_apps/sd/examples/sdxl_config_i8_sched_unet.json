@@ -3,16 +3,13 @@
   "num_latents_channels": 4,
   "batch_sizes": {
     "clip": [
-      1,
-      8
+      2
     ],
     "scheduled_unet": [
-      1,
-      8
+      2
     ],
     "vae": [
-      1,
-      8
+      1
     ]
   },
   "module_names": {
@@ -25,7 +22,7 @@
       "encode_prompts"
     ],
     "scheduled_unet": [
-      "init",
+      "run_initialize",
       "run_forward"
     ],
     "vae": [

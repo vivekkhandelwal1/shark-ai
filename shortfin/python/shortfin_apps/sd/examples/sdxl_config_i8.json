@@ -19,7 +19,7 @@
     "clip": "compiled_clip",
     "unet": "compiled_punet",
     "vae": "compiled_vae",
-    "scheduler": "compiled_scheduler",
+    "scheduler": "compiled_scheduler"
   },
   "function_names": {
     "clip": [
@@ -32,9 +32,9 @@
       "decode"
     ],
     "scheduler": [
-      "run_init",
-      "run_step",
-      "run_scale"
+      "run_initialize",
+      "run_scale",
+      "run_step"
     ]
   },
   "unet_dtype": "float16",
