@@ -76,7 +76,9 @@ class mmt_block_scaled_f8_test(unittest.TestCase):
         mod = MyModule()
         m = 256
         n = 256
-        k = 3200
+        k = 512
+        # Use a uniform block size for m, n, k.
+        # LHS and RHS each look like (2 blocks)x(4 blocks) of 128x128 matrices
         block_size = 128
         ep = torch.export.export(
             mod,
@@ -90,7 +92,7 @@ class mmt_block_scaled_f8_test(unittest.TestCase):
         output = aot.export(ep)
         output.verify()
         asm = str(output.mlir_module)
-        self.assertIn("@sharktank_mmt_block_scaled_f8_2d_256_128_256_128_3200_128_f32", asm)
+        self.assertIn("@sharktank_mmt_block_scaled_f8_2d_256_128_256_128_512_128_f32", asm)
 
 
 if __name__ == "__main__":
