@@ -4,11 +4,11 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-{% set accum_type = "bf16" %}
-{% set a_type = "f8E5M2FNUZ" %}
+{% set accum_type = "f32" %}
+{% set a_type = "f8E4M3FNUZ" %}
 
 // dtypes
-!lowp_type = f8E5M2FNUZ
+!lowp_type = f8E4M3FNUZ
 !a_type = {{a_type}}
 !c_type = {{c_type}}
 !scale_type = {{scale_type}}

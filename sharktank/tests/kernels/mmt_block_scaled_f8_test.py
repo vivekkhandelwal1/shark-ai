@@ -81,10 +81,10 @@ class mmt_block_scaled_f8_test(unittest.TestCase):
         ep = torch.export.export(
             mod,
             args=(
-                torch.rand((m // block_size, block_size, k // block_size, block_size), dtype=torch.float32).to(dtype=torch.float8_e5m2fnuz),
-                torch.rand((n // block_size, block_size, k // block_size, block_size), dtype=torch.float32).to(dtype=torch.float8_e5m2fnuz),
-                torch.rand([m // block_size, 1, k //block_size, 1]).to(dtype=torch.bfloat16),
-                torch.rand([n // block_size, 1, k //block_size, 1]).to(dtype=torch.bfloat16),
+                torch.rand((m // block_size, block_size, k // block_size, block_size), dtype=torch.float32).to(dtype=torch.float8_e4m3fnuz),
+                torch.rand((n // block_size, block_size, k // block_size, block_size), dtype=torch.float32).to(dtype=torch.float8_e4m3fnuz),
+                torch.rand([m // block_size, 1, k //block_size, 1]).to(dtype=torch.float32),
+                torch.rand([n // block_size, 1, k //block_size, 1]).to(dtype=torch.float32),
             ),
         )
         output = aot.export(ep)
