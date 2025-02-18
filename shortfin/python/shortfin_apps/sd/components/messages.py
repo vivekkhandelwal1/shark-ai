@@ -104,13 +104,12 @@ class InferenceExecRequest(sf.Message):
             host_arrs = [None] * len(cb.input_ids)
             for idx, arr in enumerate(cb.input_ids):
                 host_arrs[idx] = arr.for_transfer()
-                for i in range(cb.sample.shape[0]):
-                    with host_arrs[idx].view(i).map(write=True, discard=True) as m:
+                with host_arrs[idx].map(write=True, discard=True) as m:
 
-                        # TODO: fix this attr redundancy
-                        np_arr = self.input_ids[i][idx]
+                    # TODO: fix this attr redundancy
+                    np_arr = self.input_ids[0][idx]
 
-                        m.fill(np_arr)
+                    m.fill(np_arr)
                 cb.input_ids[idx].copy_from(host_arrs[idx])
 
         # Same for noisy latents if they are explicitly provided as a numpy array.
