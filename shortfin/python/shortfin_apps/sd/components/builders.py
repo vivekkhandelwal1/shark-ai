@@ -10,11 +10,11 @@ from iree.turbine.aot.build_actions import turbine_generate
 
 import itertools
 import os
+import urllib
 import shortfin.array as sfnp
 import copy
 import re
 import gc
-import urllib
 
 from shortfin_apps.sd.components.config_struct import ModelParams
 from shortfin_apps.sd.components.exports import export_sdxl_model
@@ -23,6 +23,12 @@ this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
 default_config_json = os.path.join(parent, "examples", "sdxl_config_i8.json")
 
+dtype_to_filetag = {
+    sfnp.float16: "fp16",
+    sfnp.float32: "fp32",
+    sfnp.int8: "i8",
+    sfnp.bfloat16: "bf16",
+}
 
 ARTIFACT_VERSION = "11182024"
 SDXL_BUCKET = (
@@ -341,7 +347,7 @@ def sdxl(
     force_update = False if force_update not in ["True", True] else True
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
-    update = needs_update(ctx, ARTIFACT_VERSION)
+    update = needs_update(ctx)
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
@@ -440,7 +446,7 @@ def sdxl(
     else:
         vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
         for f, url in vmfb_urls.items():
-            if update or needs_file_url(f, ctx, url):
+            if update or needs_file(f, ctx, url):
                 fetch_http(name=f, url=url)
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
