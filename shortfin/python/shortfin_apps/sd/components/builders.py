@@ -16,11 +16,7 @@ import re
 import gc
 
 from shortfin_apps.sd.components.config_struct import ModelParams
-<<<<<<< HEAD
-from shortfin_apps.utils import *
-=======
 from shortfin_apps.sd.components.exports import export_sdxl_model
->>>>>>> 8c59caf (Rework export procedure and program load around batch sizing, configs)
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
