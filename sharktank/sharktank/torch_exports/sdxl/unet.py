@@ -277,34 +277,22 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
     # if os.path.exists(external_weight_path):
     #     from sharktank.models.punet.tools import import_brevitas_dataset
     #     ds = import_brevitas_dataset.Dataset.load(external_weight_path)
-    if precision in ["i8", "fp16"]:
-        if (
-            quant_paths
-            and quant_paths["quant_params"]
-            and os.path.exists(quant_paths["quant_params"])
-        ):
-            results["quant_params.json"] = quant_paths["quant_params"]
-        else:
-            results["quant_params.json"] = download("quant_params.json")
-        ds_filename = os.path.basename(external_weight_path)
-        output_path = os.path.join(output_dir, ds_filename)
-        ds = get_punet_dataset(
-            results["config.json"],
-            results["params.safetensors"],
-            output_path,
-            results["quant_params.json"],
-        )
+    if (
+        quant_paths
+        and quant_paths["quant_params"]
+        and os.path.exists(quant_paths["quant_params"])
+    ):
+        results["quant_params.json"] = quant_paths["quant_params"]
     else:
-        ds_filename = (
-            os.path.basename(external_weight_path).split("unet")[0]
-            + f"punet_dataset_{precision}.irpa"
-        )
-        output_path = os.path.join(output_dir, ds_filename)
-        ds = get_punet_dataset(
-            results["config.json"],
-            results["params.safetensors"],
-            output_path,
-        )
+        results["quant_params.json"] = download("quant_params.json")
+    ds_filename = os.path.basename(external_weight_path)
+    output_path = os.path.join(output_dir, ds_filename)
+    ds = get_punet_dataset(
+        results["config.json"],
+        results["params.safetensors"],
+        output_path,
+        results["quant_params.json"],
+    )
 
     cond_unet = sharktank_unet2d.from_dataset(ds)
     return cond_unet

@@ -10,22 +10,25 @@ from iree.turbine.aot.build_actions import turbine_generate
 
 import itertools
 import os
+import urllib
 import shortfin.array as sfnp
 import copy
 import re
 import gc
 
 from shortfin_apps.sd.components.config_struct import ModelParams
-<<<<<<< HEAD
-from shortfin_apps.utils import *
-=======
 from shortfin_apps.sd.components.exports import export_sdxl_model
->>>>>>> 8c59caf (Rework export procedure and program load around batch sizing, configs)
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
 default_config_json = os.path.join(parent, "examples", "sdxl_config_i8.json")
 
+dtype_to_filetag = {
+    sfnp.float16: "fp16",
+    sfnp.float32: "fp32",
+    sfnp.int8: "i8",
+    sfnp.bfloat16: "bf16",
+}
 
 ARTIFACT_VERSION = "11182024"
 SDXL_BUCKET = (
@@ -127,7 +130,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         denoise_dict = {
             "scheduled_unet": "scheduled_unet",
         }
-    elif model_params.use_i8_punet:
+    elif model_params.use_i8_punet or model_params.use_fp8_punet:
         denoise_dict = {
             "unet": "punet",
             "scheduler": model_params.scheduler_id + "Scheduler",
@@ -166,11 +169,12 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
                 getattr(model_params, f"{mod}_dtype", sfnp.float16)
             ]
         else:
-            dtype_str = (
-                "i8"
-                if model_params.use_i8_punet
-                else dtype_to_filetag[model_params.unet_dtype]
-            )
+            if model_params.use_i8_punet:
+                dtype_str = "i8"
+            elif model_params.use_fp8_punet:
+                dtype_str = "fp8"
+            else:
+                dtype_str = dtype_to_filetag[model_params.unet_dtype]
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
@@ -343,7 +347,7 @@ def sdxl(
     force_update = False if force_update not in ["True", True] else True
     model_params = ModelParams.load_json(model_json)
     ctx = executor.BuildContext.current()
-    update = needs_update(ctx, ARTIFACT_VERSION)
+    update = needs_update(ctx)
 
     mlir_bucket = SDXL_BUCKET + "mlir/"
     vmfb_bucket = SDXL_BUCKET + "vmfbs/"
@@ -442,7 +446,7 @@ def sdxl(
     else:
         vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
         for f, url in vmfb_urls.items():
-            if update or needs_file_url(f, ctx, url):
+            if update or needs_file(f, ctx, url):
                 fetch_http(name=f, url=url)
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
