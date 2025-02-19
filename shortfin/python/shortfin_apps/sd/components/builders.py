@@ -127,7 +127,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         denoise_dict = {
             "scheduled_unet": "scheduled_unet",
         }
-    elif model_params.use_i8_punet:
+    elif model_params.use_i8_punet or model_params.use_fp8_punet:
         denoise_dict = {
             "unet": "punet",
             "scheduler": model_params.scheduler_id + "Scheduler",
@@ -166,11 +166,12 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
                 getattr(model_params, f"{mod}_dtype", sfnp.float16)
             ]
         else:
-            dtype_str = (
-                "i8"
-                if model_params.use_i8_punet
-                else dtype_to_filetag[model_params.unet_dtype]
-            )
+            if model_params.use_i8_punet:
+                dtype_str = "i8"
+            elif model_params.use_fp8_punet:
+                dtype_str = "fp8"
+            else:
+                dtype_str = dtype_to_filetag[model_params.unet_dtype]
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])

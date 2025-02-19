@@ -63,6 +63,7 @@ class ModelParams:
     vae_dtype: sfnp.DType = sfnp.float16
 
     use_i8_punet: bool = False
+    use_fp8_punet: bool = False
     use_scheduled_unet: bool = False
 
     # ABI of the module.
