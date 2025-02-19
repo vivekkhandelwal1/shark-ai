@@ -7,6 +7,21 @@ from iree.turbine.aot import (
     decompositions,
 )
 
+def save_inputs_dict(inputs_dict, output_dir):
+    for keyw, inputs in inputs_dict.items():
+        if isinstance(inputs, dict):
+            inputs_list = list(inputs.values())
+        elif isinstance(inputs, list):
+            inputs_list = inputs
+        else:
+            inputs_list = [inputs]
+        for idx, array in enumerate(inputs_list):
+            filename = f"{keyw}_input_{idx}.npy"
+            nparr = array.clone().detach().numpy()
+            filepath = os.path.join(output_dir, filename)
+            np.save(filepath, nparr)
+    return
+
 
 def export_sdxl_model(
     hf_model_name,
@@ -20,6 +35,7 @@ def export_sdxl_model(
     external_weights_file=None,
     decomp_attn=False,
     quant_paths=None,
+    save_inputs_to=None,
 ) -> ExportOutput:
     import torch
 
@@ -112,9 +128,15 @@ def export_sdxl_model(
                     inputs,
                 ):
                     return module.forward(*inputs)
-
+                example_inputs = {
+                    "run_init": sample_init_inputs,
+                    "run_forward": sample_forward_inputs
+                }
                 return export(fxb, module_name=module_name)
             else:
+                example_inputs = {
+                    "main": sample_forward_inputs
+                }
                 return export(
                     model, kwargs=sample_forward_inputs, module_name="compiled_punet"
                 )
@@ -177,4 +199,8 @@ def export_sdxl_model(
     if external_weights_file:
         save_module_parameters(external_weights_file, model)
     module = export(fxb, module_name=module_name)
+    if save_inputs_to:
+        if not os.path.isdir(save_inputs_to):
+            os.path.makedirs(save_inputs_to)
+        save_inputs_dict(example_inputs, save_inputs_to)
     return module

@@ -10,14 +10,12 @@ import logging
 import asyncio
 from pathlib import Path
 import numpy as np
-import math
 import sys
 import time
 import os
-import copy
 import subprocess
 from contextlib import asynccontextmanager
-import uvicorn
+import PIL
 
 # Import first as it does dep checking and reporting.
 from shortfin.interop.fastapi import FastAPIResponder
@@ -115,7 +113,7 @@ def get_modules(
                 model_flags[flagged_model].extend([elem])
     if td_spec:
         for key in model_flags.keys():
-            if key in ["unet", "punet", "scheduled_unet"]:
+            if key in ["unet", "punet", "scheduled_unet", "vae"]:
                 model_flags[key].extend(
                     [f"--iree-codegen-transform-dialect-library={td_spec}"]
                 )
@@ -181,25 +179,26 @@ class MicroSDXLExecutor(sf.Process):
         #     args.steps,
         #     args.guidance_scale,
         #     args.seed,
-        # )
-        input_ids = [
-            [
-                np.ones([1, 64], dtype=np.int64),
-                np.ones([1, 64], dtype=np.int64),
-                np.ones([1, 64], dtype=np.int64),
-                np.ones([1, 64], dtype=np.int64),
-            ]
-        ] * self.batch_size
-        sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
+        # # )
+        # input_ids = [
+        #     [
+        #         np.ones([1, 64], dtype=np.int64),
+        #         np.ones([1, 64], dtype=np.int64),
+        #         np.ones([1, 64], dtype=np.int64),
+        #         np.ones([1, 64], dtype=np.int64),
+        #     ]
+        # ] * self.batch_size
+        # sample = [np.ones([1, 4, 128, 128], dtype=np.float16)] * self.batch_size
         self.exec = InferenceExecRequest(
-            prompt=None,
-            neg_prompt=None,
-            input_ids=input_ids,
+            prompt=["A cat in a hat"] * args.batch_size,
+            neg_prompt=[""] * args.batch_size,
+            # input_ids=input_ids,
             height=1024,
             width=1024,
             steps=args.steps,
             guidance_scale=args.guidance_scale,
-            sample=sample,
+            seed=0,
+            # sample=sample,
         )
 
         self.exec.phases[InferencePhase.POSTPROCESS]["required"] = False
@@ -303,6 +302,8 @@ def prepare_service(args):
         args.artifacts_dir,
         args.use_tuned,
     )
+    if args.tuning_spec:
+        tuning_spec=args.tuning_spec
     model_params = ModelParams.load_json(model_config)
     vmfbs, params = get_modules(
         args.target,
@@ -395,8 +396,18 @@ class Main:
                 if results:
                     imgs.append(results)
                     print(f"{len(imgs)} samples received, of a total {samples}")
-
         print(f"Completed {samples} samples in {time.time() - start} seconds.")
+        for image_batch in imgs:
+            for i in image_batch:
+                image = (
+                    (i.transpose(0, 2, 3, 1).astype(np.float32) * 255)
+                    .clip(0, 255)
+                    .round()
+                    .astype(np.uint8)
+                )
+                for batch in range(image.shape[0]):
+                    img = PIL.Image.fromarray(image[batch])
+                    img.save(f"image{batch}.png")
         return
 
 
@@ -541,7 +552,7 @@ def run_cli(argv):
     parser.add_argument(
         "--guidance_scale",
         type=float,
-        default="0.7",
+        default="8",
         help="Guidance scale for denoising.",
     )
     parser.add_argument(

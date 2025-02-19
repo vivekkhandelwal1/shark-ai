@@ -343,6 +343,7 @@ def sdxl(
         "quant-paths", default=None, help="Path for quantized punet model artifacts."
     ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
+    save_inputs_to=cl_arg("save-inputs-to", default=None, help="A path to where inputs will be saved if specified."),
 ):
     force_update = False if force_update not in ["True", True] else True
     model_params = ModelParams.load_json(model_json)
@@ -409,6 +410,7 @@ def sdxl(
                     external_weights="irpa",
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
+                    save_inputs_to=save_inputs_to,
                     name=mlir_path.split(".mlir")[0],
                     out_of_process=True,
                 )
