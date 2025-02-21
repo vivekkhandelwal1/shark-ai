@@ -1,3 +1,5 @@
+import os
+import numpy as np
 from iree.turbine.aot import (
     ExportOutput,
     FxProgramsBuilder,
@@ -7,12 +9,15 @@ from iree.turbine.aot import (
     decompositions,
 )
 
+
 def save_inputs_dict(inputs_dict, output_dir):
     for keyw, inputs in inputs_dict.items():
         if isinstance(inputs, dict):
             inputs_list = list(inputs.values())
         elif isinstance(inputs, list):
             inputs_list = inputs
+        elif isinstance(inputs, tuple):
+            inputs_list = list(inputs)
         else:
             inputs_list = [inputs]
         for idx, array in enumerate(inputs_list):
@@ -41,6 +46,7 @@ def export_sdxl_model(
 
     def check_torch_version(begin: tuple, end: tuple):
         pass
+
     decomp_list = [torch.ops.aten.logspace]
     if decomp_attn == True:
         decomp_list = [
@@ -82,6 +88,9 @@ def export_sdxl_model(
                 inputs,
             ):
                 return module.forward(**inputs)
+
+            example_inputs = {"encode_prompts": sample_clip_inputs}
+            module = export(fxb, module_name=module_name)
 
         elif component in ["unet", "punet", "scheduled_unet"]:
             check_torch_version((2, 4, 1), (2, 6, 0))
@@ -128,16 +137,15 @@ def export_sdxl_model(
                     inputs,
                 ):
                     return module.forward(*inputs)
+
                 example_inputs = {
                     "run_init": sample_init_inputs,
-                    "run_forward": sample_forward_inputs
+                    "run_forward": sample_forward_inputs,
                 }
-                return export(fxb, module_name=module_name)
+                module = export(fxb, module_name=module_name)
             else:
-                example_inputs = {
-                    "main": sample_forward_inputs
-                }
-                return export(
+                example_inputs = {"main": sample_forward_inputs}
+                module = export(
                     model, kwargs=sample_forward_inputs, module_name="compiled_punet"
                 )
         elif component == "scheduler":
@@ -173,6 +181,10 @@ def export_sdxl_model(
             def run_step(module, inputs):
                 return module.step(*inputs)
 
+            example_inputs = {}
+
+            module = export(fxb, module_name=module_name)
+
         elif component == "vae":
             from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
 
@@ -191,6 +203,9 @@ def export_sdxl_model(
             ):
                 return module.decode(*inputs)
 
+            module = export(fxb, module_name=module_name)
+            example_inputs = {"decode": decode_args}
+
         else:
             raise ValueError("Unimplemented: ", component)
 
@@ -198,9 +213,9 @@ def export_sdxl_model(
         externalize_module_parameters(model)
     if external_weights_file:
         save_module_parameters(external_weights_file, model)
-    module = export(fxb, module_name=module_name)
+
     if save_inputs_to:
         if not os.path.isdir(save_inputs_to):
-            os.path.makedirs(save_inputs_to)
+            os.makedirs(save_inputs_to)
         save_inputs_dict(example_inputs, save_inputs_to)
     return module
