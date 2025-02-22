@@ -374,7 +374,7 @@ def sdxl(
             elif idx == 0 and not os.path.exists(params_filepath):
                 weights_path = params_filepath
                 needs_gen_params = True
-            elif "punet_dataset" in params_filename:
+            elif "punet_dataset" in params_filename or "vae_dataset" in params_filename:
                 # We need the path for punet export.
                 weights_path = params_filepath
             else:

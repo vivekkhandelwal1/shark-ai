@@ -25,6 +25,7 @@ def export_sdxl_model(
 
     def check_torch_version(begin: tuple, end: tuple):
         pass
+
     decomp_list = [torch.ops.aten.logspace]
     if decomp_attn == True:
         decomp_list = [
@@ -155,9 +156,19 @@ def export_sdxl_model(
             from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
 
             module_name = "compiled_vae"
-            model, encode_args, decode_args = get_vae_model_and_inputs(
-                hf_model_name, height, width, precision=precision, batch_size=batch_size
+            import os
+
+            model, decode_args = get_vae_model_and_inputs(
+                hf_model_name,
+                height,
+                width,
+                external_weights_file,
+                quant_paths,
+                precision=precision,
+                batch_size=batch_size,
             )
+            if external_weights:
+                externalize_module_parameters(model)
             fxb = FxProgramsBuilder(model)
 
             @fxb.export_program(
@@ -167,7 +178,7 @@ def export_sdxl_model(
                 module,
                 inputs,
             ):
-                return module.decode(*inputs)
+                return module.forward(*inputs)
 
         else:
             raise ValueError("Unimplemented: ", component)

@@ -78,28 +78,108 @@ def get_vae_model_and_inputs(
     hf_model_name,
     height,
     width,
+    external_weight_path,
+    quant_paths,
     num_channels=4,
     precision="fp16",
     batch_size=1,
 ):
     dtype = torch_dtypes[precision]
-    if dtype == torch.float16:
-        custom_vae = "amd-shark/sdxl-quant-models"
-    else:
-        custom_vae = None
-    vae_model = VaeModel(hf_model_name, custom_vae=custom_vae).to(dtype=dtype)
+    vae_model = get_vae_model(
+        hf_model_name,
+        external_weight_path,
+        quant_paths,
+        precision,
+    )
+
     input_image_shape = (batch_size, 3, height, width)
     input_latents_shape = (batch_size, num_channels, height // 8, width // 8)
-    encode_args = [
-        torch.rand(
-            input_image_shape,
-            dtype=dtype,
-        )
-    ]
+    # encode_args = [
+    #    torch.rand(
+    #        input_image_shape,
+    #        dtype=dtype,
+    #    )
+    # ]
     decode_args = [
         torch.rand(
             input_latents_shape,
             dtype=dtype,
         ),
     ]
-    return vae_model, encode_args, decode_args
+    return vae_model, decode_args
+
+
+def get_vae_model(hf_model_name, external_weight_path, quant_paths, quantize=True):
+    from sharktank.models.vae.model import VaeDecoderModel
+
+    if quantize:
+        repo_id = "amd-shark/sdxl-quant-fp8"
+        subfolder = "unet_int8_sdpa_fp8_vae_int8"
+        revision = "f61f04ffc19a38bb56ebd045510e7e1b031d56fe"
+
+    def download(filename):
+        return hf_hub_download(
+            repo_id=repo_id, subfolder=subfolder, filename=filename, revision=revision
+        )
+
+    # if quant_paths and quant_paths["config"] and os.path.exists(quant_paths["config"]):
+    #    results = {
+    #        "config.json": quant_paths["config"],
+    #    }
+    # else:
+    #    results = {
+    #        "config.json": download("config.json")
+    #    }
+    results = {
+        "config.json": hf_hub_download(
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            subfolder="vae",
+            filename="config.json",
+        )
+    }
+    if quant_paths and quant_paths["params"] and os.path.exists(quant_paths["params"]):
+        results["vae_params.safetensors"] = quant_paths["params"]
+    else:
+        results["vae_params.safetensors"] = download("vae_params.safetensors")
+
+    output_dir = os.path.dirname(external_weight_path)
+
+    if (
+        quant_paths
+        and quant_paths["vae_quant_params"]
+        and os.path.exists(quant_paths["vae_quant_params"])
+    ):
+        results["vae_quant_params.json"] = quant_paths["vae_quant_params"]
+    else:
+        results["vae_quant_params.json"] = download("vae_quant_params.json")
+    ds_filename = os.path.basename(external_weight_path)
+    output_path = os.path.join(output_dir, ds_filename)
+    ds = get_vae_dataset(
+        results["config.json"],
+        results["vae_params.safetensors"],
+        output_path,
+        results["vae_quant_params.json"],
+    )
+
+    vae = VaeDecoderModel.from_dataset(ds)
+    ds.save(output_path)
+    return vae
+
+
+def get_vae_dataset(
+    config_json_path,
+    params_path,
+    output_path,
+    quant_params_path=None,
+):
+    from sharktank.models.punet.tools import import_brevitas_dataset
+
+    ds_import_args = [
+        f"--config-json={config_json_path}",
+        f"--params={params_path}",
+        f"--output-irpa-file={output_path}",
+    ]
+    if quant_params_path:
+        ds_import_args.extend([f"--quant-params={quant_params_path}"])
+    import_brevitas_dataset.main(ds_import_args)
+    return import_brevitas_dataset.Dataset.load(output_path)
