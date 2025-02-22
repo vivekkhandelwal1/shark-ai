@@ -339,12 +339,6 @@ class InferenceExecutorProcess(sf.Process):
                 await self._denoise(device=device)
             if phases[InferencePhase.DECODE]["required"]:
                 await self._decode(device=device)
-            else:
-                # Decode and postprocess both need the output data to be on the host.
-                # With decode enabled, decode itself will wait for the data.
-                # With decode disabled, whether or not we're postprocessing,
-                # we're done with the GPU, so we wait for it to finish here.
-                await device
             if phases[InferencePhase.POSTPROCESS]["required"]:
                 await self._postprocess(device=device)
             self.exec_request.done.set_success()
@@ -537,7 +531,7 @@ class InferenceExecutorProcess(sf.Process):
 
         # Wait for the device-to-host transfer, so that we can read the
         # data with .items.
-        await device
+        await check_host_array(cb.images_host)
 
         image_array = cb.images_host.items
         dtype = image_array.typecode
@@ -559,6 +553,17 @@ class InferenceExecutorProcess(sf.Process):
         processed_image = Image.fromarray(cast_image)
         self.exec_request.response_image = processed_image
         return
+
+async def check_host_array(host_array):
+    waiting = True
+    while waiting:
+        array = host_array.items
+        if host_array.dtype == sfnp.float16:
+            dtype = np.float16
+        arr = np.frombuffer(array, dtype=dtype)
+        if not np.all(arr == 0):
+            break
+    return
 
 
 def initialize_command_buffer(fiber, model_params: ModelParams, bs: int = 1):
