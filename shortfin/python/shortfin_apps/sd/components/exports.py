@@ -169,6 +169,8 @@ def export_sdxl_model(
             )
             if external_weights:
                 externalize_module_parameters(model)
+                external_weights=None
+                external_weights_file=None
             fxb = FxProgramsBuilder(model)
 
             @fxb.export_program(
