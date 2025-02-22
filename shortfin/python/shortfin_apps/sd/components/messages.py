@@ -142,7 +142,7 @@ class InferenceExecRequest(sf.Message):
 
             m.fill(np_arr)
         cb.guidance_scale.copy_from(guidance_host)
-
+        cb.images_host.fill(np.array(0, dtype="float16"))
         self.command_buffer = cb
         return
 
