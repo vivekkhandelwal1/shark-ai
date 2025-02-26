@@ -357,7 +357,7 @@ def sdxl(
     params_filename = get_params_filename(model_params, model=model, splat=splat)
     mlir_filenames = get_mlir_filenames(model_params, model)
     vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
-    mlir_files = []
+
     if params_filename is not None:
         params_filepath = ctx.allocate_file(
             params_filename, FileNamespace.GEN
@@ -397,7 +397,7 @@ def sdxl(
                     model_key = "scheduled_unet"
                 else:
                     model_key = model
-                mod = turbine_generate(
+                turbine_generate(
                     export_sdxl_model,
                     hf_model_name=model_params.base_model_name,
                     component=model_key,
@@ -410,9 +410,8 @@ def sdxl(
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
                     name=mlir_path.split(".mlir")[0],
-                    out_of_process=False,
-                )[0]
-                mlir_files.append(mod)
+                    out_of_process=True,
+                )
             else:
                 get_cached(mlir_path, ctx, FileNamespace.GEN)
 
@@ -451,10 +450,8 @@ def sdxl(
                 fetch_http(name=f, url=url)
             else:
                 get_cached(f, ctx, FileNamespace.GEN)
-    if mlir_files:
-        filenames = [*vmfb_filenames, *mlir_files]
-    else:
-        filenames = [*vmfb_filenames, *mlir_filenames]
+
+    filenames = [*vmfb_filenames, *mlir_filenames]
     if params_filename:
         filenames.append(params_filename)
     return filenames
