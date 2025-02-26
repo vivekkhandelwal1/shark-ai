@@ -20,15 +20,11 @@ def export_sdxl_model(
     external_weights_file=None,
     decomp_attn=False,
     quant_paths=None,
-    weights_only=False,
 ) -> ExportOutput:
-
     import torch
 
     def check_torch_version(begin: tuple, end: tuple):
         pass
-
-    ret = None
 
     decomp_list = [torch.ops.aten.logspace]
     if decomp_attn == True:
@@ -118,9 +114,9 @@ def export_sdxl_model(
                 ):
                     return module.forward(*inputs)
 
-                ret = export(fxb, module_name=module_name)
+                return export(fxb, module_name=module_name)
             else:
-                ret = export(
+                return export(
                     model, kwargs=sample_forward_inputs, module_name="compiled_punet"
                 )
         elif component == "scheduler":
@@ -181,8 +177,5 @@ def export_sdxl_model(
         externalize_module_parameters(model)
     if external_weights_file:
         save_module_parameters(external_weights_file, model)
-    if weights_only:
-        return external_weights_file
-    if ret is None:
-        ret = export(fxb, module_name=module_name)
-    return ret
+    module = export(fxb, module_name=module_name)
+    return module
