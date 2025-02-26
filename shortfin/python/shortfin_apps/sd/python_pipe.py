@@ -120,6 +120,8 @@ def get_modules(
                     [f"--iree-codegen-transform-dialect-library={td_spec}"]
                 )
     filenames = []
+    builder_env = os.environ.copy()
+    builder_env["IREE_BUILD_MP_CONTEXT"] = "fork"
     for modelname in vmfbs.keys():
         ireec_args = model_flags["all"] + model_flags[modelname]
         ireec_extra_args = " ".join(ireec_args)
@@ -143,7 +145,7 @@ def get_modules(
         logger.info(
             "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
         )
-        output = subprocess.check_output(builder_args).decode()
+        output = subprocess.check_output(builder_args, env=builder_env).decode()
 
         output_paths = output.splitlines()
         for path in output_paths:
