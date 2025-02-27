@@ -531,7 +531,7 @@ class InferenceExecutorProcess(sf.Process):
 
         # Wait for the device-to-host transfer, so that we can read the
         # data with .items.
-        await check_host_array(cb.images_host)
+        check_host_array(cb.images_host)
 
         image_array = cb.images_host.items
         dtype = image_array.typecode
@@ -555,7 +555,7 @@ class InferenceExecutorProcess(sf.Process):
         return
 
 
-async def check_host_array(host_array):
+def check_host_array(host_array):
     waiting = True
     while waiting:
         array = host_array.items
@@ -563,7 +563,10 @@ async def check_host_array(host_array):
             dtype = np.float16
         arr = np.frombuffer(array, dtype=dtype)
         if not np.all(arr == 0):
-            break
+            check_1 = arr
+            check_2 = np.frombuffer(array, dtype=dtype)
+            if np.array_equal(check_1, check_2):
+                break
     return
 
 
