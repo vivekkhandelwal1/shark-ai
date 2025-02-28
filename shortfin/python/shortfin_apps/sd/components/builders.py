@@ -339,8 +339,8 @@ def sdxl(
         help="Sets preference for artifact generation method: [compile, precompiled]",
     ),
     model=cl_arg("model", type=str, help="Submodel to fetch/compile for."),
-    quant_paths=cl_arg(
-        "quant-paths", default=None, help="Path for quantized punet model artifacts."
+    quant_path=cl_arg(
+        "quant-path", default=None, help="Path for quantized punet model artifacts."
     ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
@@ -409,6 +409,7 @@ def sdxl(
                     external_weights="irpa",
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
+                    quant_path=quant_path,
                     name=mlir_path.split(".mlir")[0],
                     out_of_process=True,
                 )
