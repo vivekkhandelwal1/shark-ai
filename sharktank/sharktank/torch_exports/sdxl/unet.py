@@ -143,7 +143,7 @@ def get_scheduled_unet_model_and_inputs(
     external_weight_path,
     quant_path,
 ):
-    if os.path.exists(quant_path):
+    if quant_path is not None and os.path.exists(quant_path):
         quant_paths = {
             "config": f"{quant_path}/config.json",
             "params": f"{quant_path}/params.safetensors",
@@ -213,7 +213,7 @@ def get_punet_model_and_inputs(
 ):
     from sharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
 
-    if os.path.exists(quant_path):
+    if quant_path is not None and os.path.exists(quant_path):
         quant_paths = {
             "config": f"{quant_path}/config.json",
             "params": f"{quant_path}/params.safetensors",
