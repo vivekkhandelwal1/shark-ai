@@ -41,6 +41,16 @@ class VaeModel(torch.nn.Module):
                 hf_model_name,
                 subfolder="vae",
             )
+        elif isinstance(custom_vae, str) and "safetensors" in custom_vae:
+            self.vae = AutoencoderKL.from_pretrained(
+                hf_model_name,
+                subfoler="vae",
+            )
+            with safe_open(custom_vae, framework="pt", device="cpu") as f:
+                state_dict = {}
+                for key in f.keys():
+                    state_dict[key] = f.get_tensor(key)
+                self.vae.load_state_dict(state_dict)
         elif not isinstance(custom_vae, dict):
             self.vae = AutoencoderKL.from_pretrained(
                 hf_model_name,
@@ -81,12 +91,13 @@ def get_vae_model_and_inputs(
     num_channels=4,
     precision="fp16",
     batch_size=1,
+    custom_vae_path=None,
 ):
     dtype = torch_dtypes[precision]
     if dtype == torch.float16:
         custom_vae = "amd-shark/sdxl-quant-models"
     else:
-        custom_vae = None
+        custom_vae = custom_vae_path
     vae_model = VaeModel(hf_model_name, custom_vae=custom_vae).to(dtype=dtype)
     input_image_shape = (batch_size, 3, height, width)
     input_latents_shape = (batch_size, num_channels, height // 8, width // 8)

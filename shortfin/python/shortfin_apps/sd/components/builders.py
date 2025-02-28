@@ -339,8 +339,12 @@ def sdxl(
         help="Sets preference for artifact generation method: [compile, precompiled]",
     ),
     model=cl_arg("model", type=str, help="Submodel to fetch/compile for."),
-    quant_paths=cl_arg(
-        "quant-paths", default=None, help="Path for quantized punet model artifacts."
+    quant_path=cl_arg(
+        "quant-path", default=None, help="Path for quantized punet model artifacts."
+    ),
+    model_weights_path=cl_arg("model-weights-path", default=None, help="Path to local model checkpoint."
+    ),
+    scheduler_config_path=cl_arg("scheduler-config-path", default=None, help="Path to folder with scheduler .config."
     ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
@@ -397,9 +401,13 @@ def sdxl(
                     model_key = "scheduled_unet"
                 else:
                     model_key = model
+                if model_weights_path and os.path.exists(model_weights_path):
+                    hf_model_name=model_weights_path
+                else:
+                    hf_model_name=model_params.base_model_name
                 turbine_generate(
                     export_sdxl_model,
-                    hf_model_name=model_params.base_model_name,
+                    hf_model_name=hf_model_name,
                     component=model_key,
                     batch_size=batch_size,
                     height=height,
@@ -409,6 +417,8 @@ def sdxl(
                     external_weights="irpa",
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
+                    quant_path=quant_path,
+                    scheduler_config_path=scheduler_config_path,
                     name=mlir_path.split(".mlir")[0],
                     out_of_process=True,
                 )
