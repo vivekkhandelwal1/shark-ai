@@ -141,8 +141,16 @@ def get_scheduled_unet_model_and_inputs(
     precision,
     batch_size,
     external_weight_path,
-    quant_paths,
+    quant_path,
 ):
+    if os.path.exists(quant_path):
+        quant_paths = {
+            "config": f"{quant_path}/config.json",
+            "params": f"{quant_path}/params.safetensors",
+            "quant_params": f"{quant_path}/quant_params.json",
+        }
+    else:
+        quant_paths = None
     if precision == "fp32":
         dtype = torch.float32
     else:
@@ -201,9 +209,18 @@ def get_punet_model_and_inputs(
     precision,
     batch_size,
     external_weight_path,
-    quant_paths,
+    quant_path,
 ):
     from sharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
+
+    if os.path.exists(quant_path):
+        quant_paths = {
+            "config": f"{quant_path}/config.json",
+            "params": f"{quant_path}/params.safetensors",
+            "quant_params": f"{quant_path}/quant_params.json",
+        }
+    else:
+        quant_paths = None
 
     if precision == "fp32":
         dtype = torch.float32

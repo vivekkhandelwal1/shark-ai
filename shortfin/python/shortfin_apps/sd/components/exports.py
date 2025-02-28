@@ -19,7 +19,7 @@ def export_sdxl_model(
     external_weights=None,
     external_weights_file=None,
     decomp_attn=False,
-    quant_paths=None,
+    quant_path=None,
 ) -> ExportOutput:
     import torch
 
@@ -89,7 +89,7 @@ def export_sdxl_model(
                 precision,
                 batch_size,
                 external_weights_file,
-                quant_paths,
+                quant_path,
             )
             if external_weights:
                 externalize_module_parameters(model)
