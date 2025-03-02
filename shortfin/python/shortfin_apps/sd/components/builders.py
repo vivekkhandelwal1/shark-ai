@@ -342,6 +342,8 @@ def sdxl(
     quant_path=cl_arg(
         "quant-path", default=None, help="Path for quantized punet model artifacts."
     ),
+    model_weights_path=cl_arg("model-weights-path", default=None, help="Path to local model checkpoint."
+    ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
     force_update = False if force_update not in ["True", True] else True
@@ -397,9 +399,13 @@ def sdxl(
                     model_key = "scheduled_unet"
                 else:
                     model_key = model
+                if model_weights_path and os.path.exists(model_weights_path):
+                    hf_model_name=model_weights_path
+                else:
+                    hf_model_name=model_params.base_model_name
                 turbine_generate(
                     export_sdxl_model,
-                    hf_model_name=model_params.base_model_name,
+                    hf_model_name=hf_model_name,
                     component=model_key,
                     batch_size=batch_size,
                     height=height,
