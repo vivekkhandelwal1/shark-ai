@@ -142,6 +142,7 @@ def get_scheduled_unet_model_and_inputs(
     batch_size,
     external_weight_path,
     quant_path,
+    scheduler_config_path=None,
 ):
     if quant_path is not None and os.path.exists(quant_path):
         quant_paths = {
@@ -161,7 +162,9 @@ def get_scheduled_unet_model_and_inputs(
         quant_paths,
         precision,
     )
-    raw_scheduler = get_scheduler(hf_model_name, "EulerDiscrete")
+    if not scheduler_config_path:
+        scheduler_config_path=hf_model_name
+    raw_scheduler = get_scheduler(scheduler_config_path, "EulerDiscrete")
     model = ScheduledUnetModel(
         hf_model_name,
         unet,

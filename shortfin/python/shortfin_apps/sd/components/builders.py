@@ -344,6 +344,8 @@ def sdxl(
     ),
     model_weights_path=cl_arg("model-weights-path", default=None, help="Path to local model checkpoint."
     ),
+    scheduler_config_path=cl_arg("scheduler-config-path", default=None, help="Path to folder with scheduler .config."
+    ),
     force_update=cl_arg("force-update", default=False, help="Force update artifacts."),
 ):
     force_update = False if force_update not in ["True", True] else True
@@ -416,6 +418,7 @@ def sdxl(
                     external_weights_file=weights_path,
                     decomp_attn=decomp_attn,
                     quant_path=quant_path,
+                    scheduler_config_path=scheduler_config_path,
                     name=mlir_path.split(".mlir")[0],
                     out_of_process=True,
                 )
