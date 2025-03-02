@@ -41,6 +41,16 @@ class VaeModel(torch.nn.Module):
                 hf_model_name,
                 subfolder="vae",
             )
+        elif isinstance(custom_vae, str) and "safetensors" in custom_vae:
+            self.vae = AutoencoderKL.from_pretrained(
+                hf_model_name,
+                subfoler="vae",
+            )
+            with safe_open(custom_vae, framework="pt", device="cpu") as f:
+                state_dict = {}
+                for key in f.keys():
+                    state_dict[key] = f.get_tensor(key)
+                self.vae.load_state_dict(state_dict)
         elif not isinstance(custom_vae, dict):
             self.vae = AutoencoderKL.from_pretrained(
                 hf_model_name,

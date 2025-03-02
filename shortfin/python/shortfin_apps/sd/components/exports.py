@@ -6,6 +6,7 @@ from iree.turbine.aot import (
     save_module_parameters,
     decompositions,
 )
+import os
 
 
 def export_sdxl_model(
@@ -20,6 +21,7 @@ def export_sdxl_model(
     external_weights_file=None,
     decomp_attn=False,
     quant_path=None,
+    scheduler_config_path=None,
 ) -> ExportOutput:
     import torch
 
@@ -90,6 +92,7 @@ def export_sdxl_model(
                 batch_size,
                 external_weights_file,
                 quant_path,
+                scheduler_config_path,
             )
             if external_weights:
                 externalize_module_parameters(model)
@@ -126,7 +129,7 @@ def export_sdxl_model(
             )
 
             model, init_args, prep_args, step_args = get_scheduler_model_and_inputs(
-                hf_model_name,
+                hf_model_name if not scheduler_config_path else scheduler_config_path,
                 batch_size,
                 height,
                 width,
@@ -156,7 +159,7 @@ def export_sdxl_model(
             from sharktank.torch_exports.sdxl.vae import get_vae_model_and_inputs
 
             module_name = "compiled_vae"
-            if quant_paths and os.path.exists(os.path.join(quant_path, "vae.safetensors")):
+            if quant_path and os.path.exists(os.path.join(quant_path, "vae.safetensors")):
                 vae_path = os.path.join(quant_path, "vae.safetensors")
             else:
                 vae_path = None
