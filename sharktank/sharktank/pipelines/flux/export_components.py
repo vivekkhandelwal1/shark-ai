@@ -157,11 +157,11 @@ class FluxDenoiseStepModel(torch.nn.Module):
         return img
 
 
-class FluxSectionDenoiseStepModel(torch.nn.Module):
-    """Denoising step model that processes a specific section of the model.
+class FluxFrontDenoiseStepModel(torch.nn.Module):
+    """First half of the denoising step model that processes up to the end of double blocks.
     
-    This allows splitting the model into front and back components for memory-efficient
-    processing, where each component handles a specific section of the computation.
+    This model handles the input processing and double blocks, stopping at the end of the 
+    last double block.
     """
     def __init__(
         self,
@@ -171,14 +171,10 @@ class FluxSectionDenoiseStepModel(torch.nn.Module):
         max_length=512,
         height=1024,
         width=1024,
-        start_point="input",  # "input", "double_N", "single_0"
-        end_point="output",   # "double_N", "single_N", "output"
     ):
         super().__init__()
         self.params = params
         self.batch_size = batch_size
-        self.start_point = start_point
-        self.end_point = end_point
         
         # Set up position embeddings
         img_ids = torch.zeros(height // 16, width // 16, 3)
@@ -187,228 +183,164 @@ class FluxSectionDenoiseStepModel(torch.nn.Module):
         self.img_ids = img_ids.reshape(1, height * width // 256, 3)
         self.txt_ids = torch.zeros(1, max_length, 3)
         
-        # Determine which components are needed based on start/end points
-        self._setup_model(theta, params)
-        
-    def _parse_block_index(self, point_name):
-        """Parse a block spec like 'double_3' or 'single_2' into type and index."""
-        if point_name == "input":
-            return "input", 0
-        elif point_name == "output":
-            return "output", 0
-            
-        parts = point_name.split("_")
-        if len(parts) != 2 or parts[0] not in ["double", "single"]:
-            raise ValueError(f"Invalid block specification: {point_name}")
-            
-        try:
-            index = int(parts[1])
-            return parts[0], index
-        except ValueError:
-            raise ValueError(f"Invalid block index in: {point_name}")
-            
-    def _validate_points(self, start, end, params):
-        """Validate that start and end points form a valid range."""
-        # Convert logical points to numeric values for comparison
-        start_type, start_idx = start
-        end_type, end_idx = end
-        
-        # Map types to numeric values for ordering (input < double < single < output)
-        type_order = {"input": 0, "double": 1, "single": 2, "output": 3}
-        
-        # Check type order
-        if type_order[start_type] > type_order[end_type]:
-            raise ValueError(f"Start point {self.start_point} must come before end point {self.end_point}")
-            
-        # If same type, check indices
-        if start_type == end_type and start_type in ["double", "single"]:
-            if start_idx > end_idx:
-                raise ValueError(f"Start index {start_idx} must be <= end index {end_idx}")
-                
-        # Check block indices against model params
-        if start_type == "double" and start_idx >= params.depth:
-            raise ValueError(f"Double block index {start_idx} exceeds model depth {params.depth}")
-        if end_type == "double" and end_idx >= params.depth:
-            raise ValueError(f"Double block index {end_idx} exceeds model depth {params.depth}")
-        if start_type == "single" and start_idx >= params.depth_single_blocks:
-            raise ValueError(f"Single block index {start_idx} exceeds model single depth {params.depth_single_blocks}")
-        if end_type == "single" and end_idx >= params.depth_single_blocks:
-            raise ValueError(f"Single block index {end_idx} exceeds model single depth {params.depth_single_blocks}")
-            
-    def _setup_model(self, theta, params):
-        """Set up model components based on the specified start and end points."""
-        start = self._parse_block_index(self.start_point)
-        end = self._parse_block_index(self.end_point)
-        
-        # Validate points make sense
-        self._validate_points(start, end, params)
-        
-        # Create position embedder (needed for all sections)
+        # Create position embedder
         self.pe_embedder = EmbedND(
             dim=params.hidden_size // params.num_heads, 
             theta=params.theta, 
             axes_dim=params.axes_dim
         )
         
-        # Input processing components if starting from input
-        if start[0] == "input":
-            self.img_in = LinearLayer(theta("img_in"))
-            self.time_in = MLPEmbedder(theta("time_in"))
-            self.vector_in = MLPEmbedder(theta("vector_in"))
-            self.guidance = params.guidance_embed
-            if params.guidance_embed:
-                self.guidance_in = MLPEmbedder(theta("guidance_in"))
-            self.txt_in = LinearLayer(theta("txt_in"))
+        # Input processing components
+        self.img_in = LinearLayer(theta("img_in"))
+        self.time_in = MLPEmbedder(theta("time_in"))
+        self.vector_in = MLPEmbedder(theta("vector_in"))
+        self.guidance = params.guidance_embed
+        if params.guidance_embed:
+            self.guidance_in = MLPEmbedder(theta("guidance_in"))
+        self.txt_in = LinearLayer(theta("txt_in"))
         
-        # Double blocks
-        if (start[0] in ["input", "double"] and end[0] in ["double", "single", "output"]):
-            start_idx = start[1] if start[0] == "double" else 0
-            end_idx = end[1] if end[0] == "double" else params.depth
-            
-            if start_idx < end_idx:
-                self.double_blocks = torch.nn.ModuleList(
-                    [
-                        MMDITDoubleBlock(
-                            theta("double_blocks", i),
-                            num_heads=params.num_heads,
-                            hidden_size=params.hidden_size,
-                        )
-                        for i in range(start_idx, end_idx)
-                    ]
+        # All double blocks
+        self.double_blocks = torch.nn.ModuleList(
+            [
+                MMDITDoubleBlock(
+                    theta("double_blocks", i),
+                    num_heads=params.num_heads,
+                    hidden_size=params.hidden_size,
                 )
-            else:
-                self.double_blocks = torch.nn.ModuleList([])
-        
-        # Single blocks
-        if (start[0] in ["input", "double", "single"] and end[0] in ["single", "output"]):
-            # Include single blocks only if we're past all double blocks or starting at singles
-            if start[0] == "single" or (start[0] in ["input", "double"] and 
-                                       (end[0] != "double" or start[1] >= params.depth)):
-                start_idx = start[1] if start[0] == "single" else 0
-                end_idx = end[1] + 1 if end[0] == "single" else params.depth_single_blocks
-                
-                self.single_blocks = torch.nn.ModuleList(
-                    [
-                        MMDITSingleBlock(
-                            theta("single_blocks", i),
-                            num_heads=params.num_heads,
-                            hidden_size=params.hidden_size,
-                        )
-                        for i in range(start_idx, end_idx)
-                    ]
-                )
-            else:
-                self.single_blocks = None
-        
-        # Final layer
-        if end[0] == "output":
-            self.final_layer = LastLayer(theta("final_layer"))
+                for i in range(params.depth)
+            ]
+        )
 
-    def forward(self, img, txt, vec, step, timesteps, guidance_scale, 
-                img_inter=None, txt_inter=None, t_vec=None, t_curr=None, 
-                combined_inter=None):
-        """Process the specified section of the model.
+    def forward(self, img, txt, vec, step, timesteps, guidance_scale):
+        """Process the front half of the model up to the end of double blocks.
         
         Args:
-            img: Input image latents (required when starting from input)
-            txt: Input text embeddings (required when starting from input)
-            vec: Input CLIP features (required when starting from input)
-            step: Current denoising step (required when starting from input)
-            timesteps: Timestep schedule (required)
-            guidance_scale: CFG guidance scale (required when starting from input)
-            
-            img_inter: Intermediate image state (required when not starting from input)
-            txt_inter: Intermediate text state (required when not starting from input)
-            t_vec: Processed timestep vector (required when not starting from input)
-            t_curr: Current timestep (required when starting from input or ending at output)
-            combined_inter: Combined img+txt representation for single blocks (required for starting at single)
+            img: Input image latents
+            txt: Input text embeddings
+            vec: Input CLIP features
+            step: Current denoising step
+            timesteps: Timestep schedule
+            guidance_scale: CFG guidance scale
             
         Returns:
-            Appropriate intermediate state or final image based on end_point
+            Intermediate state at the end of double blocks:
+            (img_processed, txt_processed, vec_processed, t_curr)
         """
-        # Starting from input - do initial processing
-        if self.start_point == "input":
-            guidance_vec = guidance_scale.repeat(self.batch_size)
-            t_curr = torch.index_select(timesteps, 0, step)
-            t_vec = t_curr.repeat(self.batch_size)
-            
-            # Process inputs
-            img_processed = self.img_in(img)
-            vec_processed = self.time_in(timestep_embedding(t_vec, 256))
-            
-            if self.guidance:
-                vec_processed = vec_processed + self.guidance_in(
-                    timestep_embedding(guidance_vec, 256)
-                )
-                
-            vec_processed = vec_processed + self.vector_in(vec)
-            txt_processed = self.txt_in(txt)
-            
-        # Starting from intermediate state
-        else:
-            if self.start_point.startswith("double"):
-                if img_inter is None or txt_inter is None or t_vec is None:
-                    raise ValueError(f"Starting from {self.start_point} requires img_inter, txt_inter, and t_vec")
-                    
-                img_processed = img_inter
-                txt_processed = txt_inter
-                vec_processed = t_vec
-                
-            elif self.start_point.startswith("single"):
-                if combined_inter is None or t_vec is None:
-                    raise ValueError(f"Starting from {self.start_point} requires combined_inter and t_vec")
-                    
-                combined = combined_inter
-                vec_processed = t_vec
+        # Initial processing
+        guidance_vec = guidance_scale.repeat(self.batch_size)
+        t_curr = torch.index_select(timesteps, 0, step)
+        t_vec = t_curr.repeat(self.batch_size)
         
+        # Process inputs
+        img_processed = self.img_in(img)
+        vec_processed = self.time_in(timestep_embedding(t_vec, 256))
+        
+        if self.guidance:
+            vec_processed = vec_processed + self.guidance_in(
+                timestep_embedding(guidance_vec, 256)
+            )
+            
+        vec_processed = vec_processed + self.vector_in(vec)
+        txt_processed = self.txt_in(txt)
+        
+        # Process through double blocks
+        ids = torch.cat((self.txt_ids, self.img_ids), dim=1)
+        pe = self.pe_embedder(ids)
+        
+        for block in self.double_blocks:
+            img_processed, txt_processed = block(
+                img=img_processed, txt=txt_processed, vec=vec_processed, pe=pe
+            )
+                
+        # Return intermediate state at the end of double blocks
+        return img_processed, txt_processed, vec_processed, t_curr
+
+
+class FluxBackDenoiseStepModel(torch.nn.Module):
+    """Second half of the denoising step model that processes from after double blocks to output.
+    
+    This model handles all single blocks and the final layer, starting from where the front model
+    left off (after all double blocks).
+    """
+    def __init__(
+        self,
+        theta,
+        params,
+        batch_size=1,
+        max_length=512,
+        height=1024,
+        width=1024,
+    ):
+        super().__init__()
+        self.params = params
+        self.batch_size = batch_size
+        
+        # Set up position embeddings
+        img_ids = torch.zeros(height // 16, width // 16, 3)
+        img_ids[..., 1] = img_ids[..., 1] + torch.arange(height // 16)[:, None]
+        img_ids[..., 2] = img_ids[..., 2] + torch.arange(width // 16)[None, :]
+        self.img_ids = img_ids.reshape(1, height * width // 256, 3)
+        self.txt_ids = torch.zeros(1, max_length, 3)
+        
+        # Create position embedder
+        self.pe_embedder = EmbedND(
+            dim=params.hidden_size // params.num_heads, 
+            theta=params.theta, 
+            axes_dim=params.axes_dim
+        )
+        
+        # All single blocks
+        self.single_blocks = torch.nn.ModuleList(
+            [
+                MMDITSingleBlock(
+                    theta("single_blocks", i),
+                    num_heads=params.num_heads,
+                    hidden_size=params.hidden_size,
+                )
+                for i in range(params.depth_single_blocks)
+            ]
+        )
+        
+        # Final layer
+        self.final_layer = LastLayer(theta("final_layer"))
+
+    def forward(self, img_inter, txt_inter, t_vec, t_curr, img, step, timesteps):
+        """Process the back half of the model from after double blocks to output.
+        
+        Args:
+            img_inter: Intermediate image state from front model
+            txt_inter: Intermediate text state from front model
+            t_vec: Processed timestep vector from front model
+            t_curr: Current timestep from front model
+            img: Original input image (needed for final update)
+            step: Current denoising step
+            timesteps: Timestep schedule
+            
+        Returns:
+            Final updated image
+        """
         # Process through blocks
         ids = torch.cat((self.txt_ids, self.img_ids), dim=1)
         pe = self.pe_embedder(ids)
         
-        # Process double blocks if present
-        if hasattr(self, 'double_blocks') and len(self.double_blocks) > 0:
-            for block in self.double_blocks:
-                img_processed, txt_processed = block(
-                    img=img_processed, txt=txt_processed, vec=vec_processed, pe=pe
-                )
-                
-        # Process single blocks if present and we've moved past double blocks
-        if hasattr(self, 'single_blocks') and self.single_blocks is not None:
-            # Combine image and text for single blocks if coming from double blocks
-            if not hasattr(self, 'combined'):
-                combined = torch.cat((txt_processed, img_processed), 1)
-                
-            # Process through single blocks
-            for block in self.single_blocks:
-                combined = block(combined, vec=vec_processed, pe=pe)
-                
-            # Extract image part if we're going to final layer
-            if self.end_point == "output":
-                img_processed = combined[:, txt_processed.shape[1]:, ...]
+        # Combine image and text for single blocks
+        combined = torch.cat((txt_inter, img_inter), 1)
         
-        # Apply final layer and timestep scaling if ending at output
-        if self.end_point == "output":
-            # Final projection
-            pred = self.final_layer(img_processed, vec_processed)
-            
-            # Apply timestep scaling
-            if t_curr is None:
-                raise ValueError("t_curr is required when end_point is 'output'")
-                
-            t_prev = torch.index_select(timesteps, 0, step + 1)
-            if self.start_point == "input":
-                updated_img = img + (t_prev - t_curr) * pred
-            else:
-                updated_img = img_inter + (t_prev - t_curr) * pred
-                
-            return updated_img
+        # Process through single blocks
+        for block in self.single_blocks:
+            combined = block(combined, vec=t_vec, pe=pe)
         
-        # Return appropriate intermediate state based on where we stopped
-        elif self.end_point.startswith("double"):
-            return img_processed, txt_processed, vec_processed, t_curr
-            
-        elif self.end_point.startswith("single"):
-            return combined, vec_processed, t_curr
+        # Extract image part for final layer
+        img_processed = combined[:, txt_inter.shape[1]:, ...]
+        
+        # Final projection
+        pred = self.final_layer(img_processed, t_vec)
+        
+        # Apply timestep scaling
+        t_prev = torch.index_select(timesteps, 0, step + 1)
+        updated_img = img + (t_prev - t_curr) * pred
+        
+        return updated_img
 
 
 @torch.no_grad()
@@ -421,13 +353,13 @@ def get_flux_transformer_model(
     precision="fp32",
     bs=1,
     split_model=False,
-    front_endpoint="double_0",  # If split_model is True, endpoint for front half
-    back_startpoint="double_0",  # If split_model is True, startpoint for back half
 ):
     # DNS: refactor file to select datatype
     dtype = torch_dtypes[precision]
     transformer_dataset = Dataset.load(weight_file)
     flux_params = FluxParams.from_hugging_face_properties(transformer_dataset.properties)
+    
+    # Model configuration is available in flux_params
     
     if not split_model:
         # Create regular model
@@ -446,24 +378,33 @@ def get_flux_transformer_model(
         )
         return model, sample_inputs
     else:
-        # Create front half model
-        front_model = FluxSectionDenoiseStepModel(
+        # Create front half model (processes up to the end of double blocks)
+        front_model = FluxFrontDenoiseStepModel(
             theta=transformer_dataset.root_theta,
             params=flux_params,
-            start_point="input",
-            end_point=front_endpoint,
+            batch_size=bs,
+            max_length=max_len,
+            height=img_height,
+            width=img_width,
         )
         
-        # Create back half model
-        back_model = FluxSectionDenoiseStepModel(
+        # Create back half model (processes from after double blocks to output)
+        back_model = FluxBackDenoiseStepModel(
             theta=transformer_dataset.root_theta,
             params=flux_params,
-            start_point=back_startpoint,
-            end_point="output",
+            batch_size=bs,
+            max_length=max_len,
+            height=img_height,
+            width=img_width,
         )
         
         # Prepare sample inputs
-        sample_args, sample_kwargs = front_model.mmdit.sample_inputs() if hasattr(front_model, 'mmdit') else FluxModelV1(theta=transformer_dataset.root_theta, params=flux_params).sample_inputs()
+        flux_model = FluxModelV1(theta=transformer_dataset.root_theta, params=flux_params)
+        sample_args, sample_kwargs = flux_model.sample_inputs()
+        
+        # Sample inputs are generated by the FluxModelV1.sample_inputs() method
+        
+        # Front model inputs (same as the full model)
         front_inputs = (
             sample_kwargs["img"],
             sample_kwargs["txt"],
@@ -473,30 +414,31 @@ def get_flux_transformer_model(
             sample_kwargs["guidance"],
         )
         
-        # For back half, we need different inputs based on the split point
-        if back_startpoint.startswith("double"):
-            # Back half expects (img_inter, txt_inter, t_vec, t_curr, img_orig, step, timesteps)
-            back_inputs = (
-                sample_kwargs["img"],  # placeholder for img_inter
-                sample_kwargs["txt"],  # placeholder for txt_inter
-                torch.full((bs,), 1, dtype=dtype),  # placeholder for t_vec
-                torch.full((bs,), 1, dtype=dtype),  # placeholder for t_curr
-                sample_kwargs["img"],  # placeholder for original img
-                torch.full((bs,), 1, dtype=torch.int64),  # step
-                torch.full((100,), 1, dtype=dtype),  # timesteps
-            )
-        elif back_startpoint.startswith("single"):
-            # Back half expects (combined_inter, t_vec, t_curr, [other params])
-            combined_shape = list(sample_kwargs["txt"].shape)
-            combined_shape[1] += sample_kwargs["img"].shape[1]
-            back_inputs = (
-                torch.zeros(combined_shape, dtype=dtype),  # placeholder for combined_inter
-                torch.full((bs,), 1, dtype=dtype),  # placeholder for t_vec
-                torch.full((bs,), 1, dtype=dtype),  # placeholder for t_curr
-                sample_kwargs["img"],  # placeholder for original img
-                torch.full((bs,), 1, dtype=torch.int64),  # step
-                torch.full((100,), 1, dtype=dtype),  # timesteps
-            )
+        # Create placeholders with the correct shapes based on the model configuration
+        hidden_size = flux_params.hidden_size
+        
+        # Create placeholder tensors with the correct shapes
+        img_shape = list(sample_kwargs["img"].shape)
+        img_shape[-1] = hidden_size
+        img_inter_placeholder = torch.zeros(img_shape, dtype=dtype)
+        
+        txt_shape = list(sample_kwargs["txt"].shape)
+        txt_shape[-1] = hidden_size
+        txt_inter_placeholder = torch.zeros(txt_shape, dtype=dtype)
+        
+        t_vec_placeholder = torch.zeros((bs, hidden_size), dtype=dtype)
+        t_curr_placeholder = torch.zeros((bs,), dtype=dtype)
+        
+        # Back model inputs with correct shapes
+        back_inputs = (
+            img_inter_placeholder,    # placeholder for img_inter with correct shape
+            txt_inter_placeholder,    # placeholder for txt_inter with correct shape
+            t_vec_placeholder,        # placeholder for t_vec with correct shape
+            t_curr_placeholder,       # placeholder for t_curr with correct shape
+            sample_kwargs["img"],     # original img
+            torch.full((bs,), 1, dtype=torch.int64),  # step
+            torch.full((100,), 1, dtype=dtype),       # timesteps
+        )
             
         return (front_model, back_model), (front_inputs, back_inputs)
 
@@ -688,8 +630,6 @@ def export_flux_model(
     external_weight_path=None,
     decomp_attn=False,
     split_model=False,
-    front_endpoint="double_0",
-    back_startpoint="double_0",
 ):
     weights_path = Path(weights_directory) / f"exported_parameters_{precision}"
     dtype = torch_dtypes[precision]
@@ -745,8 +685,6 @@ def export_flux_model(
                     precision=precision,
                     bs=batch_size,
                     split_model=True,
-                    front_endpoint=front_endpoint,
-                    back_startpoint=back_startpoint,
                 )
                 
                 # Create front model module
@@ -779,8 +717,8 @@ def export_flux_model(
                     run_forward_back = _forward_back
                 
                 # We'll return both modules as a tuple
-                inst_front = CompiledFluxFrontTransformer(context=Context(), import_to="IMPORT_FRONT")
-                inst_back = CompiledFluxBackTransformer(context=Context(), import_to="IMPORT_BACK")
+                inst_front = CompiledFluxFrontTransformer(context=Context(), import_to="IMPORT")
+                inst_back = CompiledFluxBackTransformer(context=Context(), import_to="IMPORT")
                 
                 module_front = CompiledModule.get_mlir_module(inst_front)
                 module_back = CompiledModule.get_mlir_module(inst_back)
@@ -902,8 +840,8 @@ def get_filename(args):
     # Handle split models for mmdit
     if args.component == "mmdit" and args.split_model:
         # Generate names for front and back components
-        front_suffix = f"mmdit_front_{args.front_endpoint}_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}"
-        back_suffix = f"mmdit_back_{args.back_startpoint}_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}"
+        front_suffix = f"mmdit_front_double_end_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}"
+        back_suffix = f"mmdit_back_single_start_bs{args.batch_size}_{args.max_length}_{args.height}x{args.width}_{args.precision}"
         
         front_name = create_safe_name(args.model, front_suffix)
         back_name = create_safe_name(args.model, back_suffix)
@@ -963,9 +901,9 @@ if __name__ == "__main__":
     p.add_argument("--external_weights_file", default=None)
     p.add_argument("--decomp_attn", action="store_true")
     
-    # Add a single parameter to control splitting
-    p.add_argument("--split_point", default=None, 
-                   help="Split the model at this point (e.g., 'double_3'). Creates front and back halves.")
+    # Simple flag to control splitting at double/single boundary
+    p.add_argument("--split_model", action="store_true", 
+                   help="Split the model at the boundary between double and single blocks")
     
     args = p.parse_args()
 
@@ -979,15 +917,10 @@ if __name__ == "__main__":
             + args.external_weights
         )
     
-    # Determine if we're creating a split model
-    split_model = args.split_point is not None and args.component == "mmdit"
-    
-    # For split model, use the specified split point
-    if split_model:
+    # For split model
+    if args.split_model and args.component == "mmdit":
         # Set up args for get_filename
         args.split_model = True
-        args.front_endpoint = args.split_point
-        args.back_startpoint = args.split_point
         
         front_name, back_name = get_filename(args)
         front_mod_str, back_mod_str = export_flux_model(
@@ -1004,8 +937,6 @@ if __name__ == "__main__":
             args.external_weights_file,
             args.decomp_attn,
             split_model=True,
-            front_endpoint=args.split_point,
-            back_startpoint=args.split_point,
         )
 
         # Write front model

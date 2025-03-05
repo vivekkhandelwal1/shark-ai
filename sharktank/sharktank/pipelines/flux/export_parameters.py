@@ -103,28 +103,28 @@ def export_flux_pipeline_iree_parameters(
     )
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Export T5 parameters
-    t5_path = Path(model_path_or_dataset) / "text_encoder_2/model.irpa"
-    t5_output_path = output_path / "t5.irpa"
-    if not is_already_exported(t5_output_path):
-        export_t5_parameters(t5_path, str(t5_output_path), dtype)
-        logging.info(f"Exported T5 parameters to {t5_output_path}")
-    else:
-        logging.info(f"Skipped T5 parameter export, already exists at {t5_output_path}")
+    # # Export T5 parameters
+    # t5_path = Path(model_path_or_dataset) / "text_encoder_2/model.irpa"
+    # t5_output_path = output_path / "t5.irpa"
+    # if not is_already_exported(t5_output_path):
+    #     export_t5_parameters(t5_path, str(t5_output_path), dtype)
+    #     logging.info(f"Exported T5 parameters to {t5_output_path}")
+    # else:
+    #     logging.info(f"Skipped T5 parameter export, already exists at {t5_output_path}")
 
-    # Export CLIP parameters
-    clip_path = Path(model_path_or_dataset) / "text_encoder/"
-    clip_output_path = output_path / "clip.irpa"
-    if not is_already_exported(clip_output_path):
-        clip_model = HfCLIPTextModel.from_pretrained(clip_path, torch_dtype=dtype)
-        export_clip_text_model_dataset_from_hugging_face(
-            clip_model, str(clip_output_path)
-        )
-        logging.info(f"Exported CLIP parameters to {clip_output_path}")
-    else:
-        logging.info(
-            f"Skipped CLIP parameter export, already exists at {clip_output_path}"
-        )
+    # # Export CLIP parameters
+    # clip_path = Path(model_path_or_dataset) / "text_encoder/"
+    # clip_output_path = output_path / "clip.irpa"
+    # if not is_already_exported(clip_output_path):
+    #     clip_model = HfCLIPTextModel.from_pretrained(clip_path, torch_dtype=dtype)
+    #     export_clip_text_model_dataset_from_hugging_face(
+    #         clip_model, str(clip_output_path)
+    #     )
+    #     logging.info(f"Exported CLIP parameters to {clip_output_path}")
+    # else:
+    #     logging.info(
+    #         f"Skipped CLIP parameter export, already exists at {clip_output_path}"
+    # )
 
     # Export FluxTransformer parameters
     transformer_path = Path(model_path_or_dataset) / "transformer/model.irpa"
@@ -233,19 +233,19 @@ def export_flux_pipeline_iree_parameters(
                 logging.error(f"Invalid split_point: {split_point}")
                 
     # Export VAE parameters
-    vae_path = Path(model_path_or_dataset) / "vae/model.irpa"
-    vae_output_path = output_path / "vae.irpa"
-    if not is_already_exported(vae_output_path):
-        vae_dataset = Dataset.load(vae_path)
-        vae_dataset.root_theta = vae_dataset.root_theta.transform(
-            functools.partial(set_float_dtype, dtype=dtype)
-        )
-        vae_dataset.save(str(vae_output_path))
-        logging.info(f"Exported VAE parameters to {vae_output_path}")
-    else:
-        logging.info(
-            f"Skipped VAE parameter export, already exists at {vae_output_path}"
-        )
+    # vae_path = Path(model_path_or_dataset) / "vae/model.irpa"
+    # vae_output_path = output_path / "vae.irpa"
+    # if not is_already_exported(vae_output_path):
+    #     vae_dataset = Dataset.load(vae_path)
+    #     vae_dataset.root_theta = vae_dataset.root_theta.transform(
+    #         functools.partial(set_float_dtype, dtype=dtype)
+    #     )
+    #     vae_dataset.save(str(vae_output_path))
+    #     logging.info(f"Exported VAE parameters to {vae_output_path}")
+    # else:
+    #     logging.info(
+    #         f"Skipped VAE parameter export, already exists at {vae_output_path}"
+    #     )
 
     logging.info(f"Completed Flux pipeline parameter export to {output_path}")
 
