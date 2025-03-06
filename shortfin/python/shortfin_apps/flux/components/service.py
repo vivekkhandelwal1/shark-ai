@@ -283,16 +283,11 @@ class SequentialGenerateService(GenerateService):
                 # For other components, unload everything
                 await self.unload_all_components(worker_idx)
             
-            # Map the front/back components to the right modules
-            actual_component = component_name
-            if component_name in ["sampler_front", "sampler_back"]:
-                actual_component = "sampler"
-            
             component_modules = [
                 sf.ProgramModule.parameter_provider(
-                    self.sysman.ls, *self.inference_parameters.get(actual_component, [])
+                    self.sysman.ls, *self.inference_parameters.get(component_name, [])
                 ),
-                *self.inference_modules[actual_component],
+                *self.inference_modules[component_name],
             ]
 
             worker_devices = self.fibers[
@@ -333,7 +328,7 @@ class SequentialGenerateService(GenerateService):
                 for bs in self.model_params.sampler_batch_sizes:
                     self.inference_functions[worker_idx]["denoise_front"][bs] = {
                         "sampler_front": self.inference_programs[worker_idx]["sampler_front"][
-                            f"{self.model_params.sampler_module_name}.{self.model_params.sampler_fn_name}_front"
+                            f"compiled_flux_front_transformer.run_forward_front"
                         ],
                     }
             elif component_name == "sampler_back":
@@ -341,7 +336,7 @@ class SequentialGenerateService(GenerateService):
                 for bs in self.model_params.sampler_batch_sizes:
                     self.inference_functions[worker_idx]["denoise_back"][bs] = {
                         "sampler_back": self.inference_programs[worker_idx]["sampler_back"][
-                            f"{self.model_params.sampler_module_name}.{self.model_params.sampler_fn_name}_back"
+                            f"compiled_flux_back_transformer.run_forward_back"
                         ],
                     }
             elif component_name == "vae":
@@ -1214,13 +1209,16 @@ class SequentialInferenceExecutorProcess(InferenceExecutorProcess):
             # Run the front half with the current inputs
             await device
             logger.info("INVOKE front half sampler")
-            (front_output,) = await fns_front["sampler_front"](
+            front_output = await fns_front["sampler_front"](
                 *denoise_inputs.values(), fiber=self.fiber
             )
             await device
             
-            # Store intermediate results in our buffer
-            intermediate_state.copy_from(front_output)
+            # The front output is a tuple of (img_processed, txt_processed, vec_processed, t_curr)
+            img_processed, txt_processed, vec_processed, t_curr = front_output
+            
+            # Store intermediate image state in our buffer for visualization if needed
+            intermediate_state.copy_from(img_processed)
             
             # Unload front half to free memory
             await self.sequential_service.unload_component("sampler_front", self.worker_index)
@@ -1236,19 +1234,32 @@ class SequentialInferenceExecutorProcess(InferenceExecutorProcess):
             
             fns_back = entrypoints_back[req_bs]
             
-            # We need to feed the intermediate state as input to the back half
-            denoise_inputs["img"].copy_from(intermediate_state)
-            
-            # Run the back half
+            # Run the back half with the intermediate states from front half
             await device
             logger.info("INVOKE back half sampler")
-            (back_output,) = await fns_back["sampler_back"](
-                *denoise_inputs.values(), fiber=self.fiber
+            # The back half expects: (img_inter, txt_inter, vec_processed, t_curr, original_img, step, timesteps)
+            back_inputs = (
+                img_processed,
+                txt_processed,
+                vec_processed,
+                t_curr,
+                denoise_inputs["img"],  # Original img
+                denoise_inputs["step"],
+                denoise_inputs["timesteps"]
+            )
+            
+            back_output = await fns_back["sampler_back"](
+                *back_inputs, fiber=self.fiber
             )
             await device
             
-            # Use the back output as input for the next step
-            denoise_inputs["img"].copy_from(back_output)
+            # The back output is the updated image latents
+            # For the next step, extract the actual array from the ProgramInvocation
+            # ProgramInvocation is a promise-like object containing the actual array
+            updated_img = back_output[0]  # Extract the first (and only) element from the tuple
+            
+            # Now copy the updated image to our input buffer
+            denoise_inputs["img"].copy_from(updated_img)
             
             # Unload back half
             await self.sequential_service.unload_component("sampler_back", self.worker_index)

@@ -120,13 +120,29 @@ class FetchHttpWithCheckAction(BuildAction):
         path = self.output_file.get_fs_path()
         self.executor.write_status(f"Fetching URL: {self.url} -> {path}")
         try:
+            logging.info(f"Attempting to fetch: {self.url}")
             urllib.request.urlretrieve(self.url, str(path))
         except urllib.error.HTTPError as e:
             if retries > 0:
+                logging.warning(f"HTTP error fetching {self.url}: {e}. Retries left: {retries}")
                 retries -= 1
                 self._invoke(retries=retries)
             else:
-                raise IOError(f"Failed to fetch URL '{self.url}': {e}") from None
+                error_msg = f"Failed to fetch URL '{self.url}': {e}"
+                logging.error(error_msg)
+                print(f"ERROR: {error_msg}")
+                raise IOError(error_msg) from None
+        except urllib.error.URLError as e:
+            if retries > 0:
+                logging.warning(f"URL error fetching {self.url}: {e}. Retries left: {retries}")
+                retries -= 1
+                self._invoke(retries=retries)
+            else:
+                error_msg = f"Failed to access URL '{self.url}': {e}"
+                logging.error(error_msg)
+                print(f"ERROR: {error_msg}")
+                raise IOError(error_msg) from None
+        
         local_size = get_file_size(str(path))
         try:
             with urllib.request.urlopen(self.url) as response:
@@ -134,13 +150,19 @@ class FetchHttpWithCheckAction(BuildAction):
             if content_length:
                 content_length = int(content_length)
                 if content_length != local_size:
-                    raise IOError(
-                        f"Size of downloaded artifact does not match content-length header! {content_length} != {local_size}"
-                    )
-        except IOError:
+                    error_msg = f"Size of downloaded artifact for {self.url} does not match content-length header! {content_length} != {local_size}"
+                    logging.error(error_msg)
+                    raise IOError(error_msg)
+        except IOError as e:
             if retries > 0:
+                logging.warning(f"IO error verifying {self.url}: {e}. Retries left: {retries}")
                 retries -= 1
                 self._invoke(retries=retries)
+            else:
+                error_msg = f"Failed to verify download of '{self.url}': {e}"
+                logging.error(error_msg)
+                print(f"ERROR: {error_msg}")
+                raise IOError(error_msg) from None
 
 
 # Common mapping for program isolation modes

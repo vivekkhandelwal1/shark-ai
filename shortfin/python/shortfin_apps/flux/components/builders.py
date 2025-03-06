@@ -55,9 +55,11 @@ def get_vmfb_filenames(
 def get_params_filenames(model_params: ModelParams, model=None, splat: bool = False):
     params_filenames = []
     base = "flux_dev" if not model_params.is_schnell else model_params.base_model_name
-    modnames = ["clip", "sampler", "t5xxl", "vae"]
+    modnames = ["clip", "sampler", "sampler_front", "sampler_back", "t5xxl", "vae"]
     mod_precs = [
         dtype_to_filetag[model_params.clip_dtype],
+        dtype_to_filetag[model_params.sampler_dtype],
+        dtype_to_filetag[model_params.sampler_dtype],
         dtype_to_filetag[model_params.sampler_dtype],
         dtype_to_filetag[model_params.t5xxl_dtype],
         dtype_to_filetag[model_params.vae_dtype],
@@ -83,29 +85,46 @@ def get_file_stems(model_params: ModelParams):
         "sampler": "sampler",
         "vae": "vae",
     }
+    # Add sampler_front and sampler_back to mod_names
+    mod_names["sampler_front"] = "sampler_front"
+    mod_names["sampler_back"] = "sampler_back"
+    
     for mod, modname in mod_names.items():
         ord_params = [
             base,
             [modname],
         ]
         bsizes = []
-        for bs in getattr(model_params, f"{mod}_batch_sizes", [1]):
-            bsizes.extend([f"bs{bs}"])
+        # If it's sampler_front or sampler_back, use sampler batch sizes
+        if mod in ["sampler_front", "sampler_back"]:
+            for bs in getattr(model_params, "sampler_batch_sizes", [1]):
+                bsizes.extend([f"bs{bs}"])
+        else:
+            for bs in getattr(model_params, f"{mod}_batch_sizes", [1]):
+                bsizes.extend([f"bs{bs}"])
         ord_params.extend([bsizes])
-        if mod in ["sampler"]:
+        
+        if mod in ["sampler", "sampler_front", "sampler_back"]:
             ord_params.extend([[str(model_params.t5xxl_max_seq_len)]])
         elif mod == "clip":
             ord_params.extend([[str(model_params.clip_max_seq_len)]])
-        if mod in ["sampler", "vae"]:
+            
+        if mod in ["sampler", "sampler_front", "sampler_back", "vae"]:
             dims = []
             for dim_pair in model_params.dims:
                 dim_pair_str = [str(d) for d in dim_pair]
                 dims.extend(["x".join(dim_pair_str)])
             ord_params.extend([dims])
 
-        dtype_str = dtype_to_filetag[
-            getattr(model_params, f"{mod}_dtype", sfnp.float32)
-        ]
+        # For sampler_front/back, use sampler dtype
+        if mod in ["sampler_front", "sampler_back"]:
+            dtype_str = dtype_to_filetag[
+                getattr(model_params, "sampler_dtype", sfnp.float32)
+            ]
+        else:
+            dtype_str = dtype_to_filetag[
+                getattr(model_params, f"{mod}_dtype", sfnp.float32)
+            ]
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
@@ -147,7 +166,13 @@ def flux(
     mlir_urls = get_url_map(mlir_filenames, mlir_bucket)
     for f, url in mlir_urls.items():
         if update or needs_file_url(f, ctx, url):
-            fetch_http(name=f, url=url)
+            try:
+                fetch_http(name=f, url=url)
+            except Exception as e:
+                error_msg = f"Failed to fetch MLIR file '{f}' from URL '{url}': {e}"
+                print(f"ERROR: {error_msg}")
+                logging.error(error_msg)
+                raise RuntimeError(error_msg) from e
 
     vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
     vmfb_urls = get_url_map(vmfb_filenames, vmfb_bucket)
@@ -167,13 +192,26 @@ def flux(
     else:
         for f, url in vmfb_urls.items():
             if update or needs_file_url(f, ctx, url):
-                fetch_http(name=f, url=url)
+                try:
+                    fetch_http(name=f, url=url)
+                except Exception as e:
+                    error_msg = f"Failed to fetch VMFB file '{f}' from URL '{url}': {e}"
+                    print(f"ERROR: {error_msg}")
+                    logging.error(error_msg)
+                    raise RuntimeError(error_msg) from e
 
     params_filenames = get_params_filenames(model_params, model=model, splat=splat)
     params_urls = get_url_map(params_filenames, FLUX_WEIGHTS_BUCKET)
+    print(params_urls)
     for f, url in params_urls.items():
         if needs_file_url(f, ctx, url):
-            fetch_http_check_size(name=f, url=url)
+            try:
+                fetch_http_check_size(name=f, url=url)
+            except Exception as e:
+                error_msg = f"Failed to fetch parameter file '{f}' from URL '{url}': {e}"
+                print(f"ERROR: {error_msg}")
+                logging.error(error_msg)
+                raise RuntimeError(error_msg) from e
     filenames = [*vmfb_filenames, *params_filenames, *mlir_filenames]
     return filenames
 

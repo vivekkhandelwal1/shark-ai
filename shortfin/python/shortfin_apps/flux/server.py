@@ -25,7 +25,7 @@ from .components.generate import ClientGenerateBatchProcess
 from .components.config_struct import ModelParams
 from .components.io_struct import GenerateReqInput
 from .components.manager import SystemManager
-from .components.service import GenerateService
+from .components.service import GenerateService, SequentialGenerateService
 from .components.tokenizer import Tokenizer
 
 
@@ -122,20 +122,42 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
     ]
 
     model_params = ModelParams.load_json(model_config)
-    vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
+    try:
+        vmfbs, params = get_modules(args, model_config, flagfile, tuning_spec)
+    except Exception as e:
+        logger.error(f"Failed to retrieve required modules: {e}")
+        sys.exit(1)
 
-    sm = GenerateService(
-        name="sd",
-        sysman=sysman,
-        clip_tokenizers=clip_tokenizers,
-        t5xxl_tokenizers=t5xxl_tokenizers,
-        model_params=model_params,
-        fibers_per_device=args.fibers_per_device,
-        workers_per_device=args.workers_per_device,
-        prog_isolation=args.isolation,
-        show_progress=args.show_progress,
-        trace_execution=args.trace_execution,
-    )
+    if args.sequential_mode:
+        logger.info("Using sequential model loading for lower memory usage")
+        sm = SequentialGenerateService(
+            name="sd",
+            sysman=sysman,
+            clip_tokenizers=clip_tokenizers,
+            t5xxl_tokenizers=t5xxl_tokenizers,
+            model_params=model_params,
+            fibers_per_device=args.fibers_per_device,
+            workers_per_device=args.workers_per_device,
+            prog_isolation=args.isolation,
+            show_progress=args.show_progress,
+            trace_execution=args.trace_execution,
+            split_denoise=args.split_denoise,
+        )
+    else:
+        logger.info("Using standard model loading")
+        sm = GenerateService(
+            name="sd",
+            sysman=sysman,
+            clip_tokenizers=clip_tokenizers,
+            t5xxl_tokenizers=t5xxl_tokenizers,
+            model_params=model_params,
+            fibers_per_device=args.fibers_per_device,
+            workers_per_device=args.workers_per_device,
+            prog_isolation=args.isolation,
+            show_progress=args.show_progress,
+            trace_execution=args.trace_execution,
+        )
+    
     for key, vmfblist in vmfbs.items():
         for vmfb in vmfblist:
             sm.load_inference_module(vmfb, component=key)
@@ -215,9 +237,24 @@ def get_configs(args):
 
 def get_modules(args, model_config, flagfile, td_spec):
     # TODO: Move this out of server entrypoint
-    vmfbs = {"clip": [], "t5xxl": [], "sampler": [], "vae": []}
-    params = {"clip": [], "t5xxl": [], "sampler": [], "vae": []}
+    vmfbs = {"clip": [], "t5xxl": [], "vae": []}
+    params = {"clip": [], "t5xxl": [], "vae": []}
+    
+    # Add support for split sampler model if needed
+    if args.split_denoise:
+        vmfbs["sampler_front"] = []
+        vmfbs["sampler_back"] = []
+        params["sampler_front"] = []
+        params["sampler_back"] = []
+    else:
+        vmfbs["sampler"] = []
+        params["sampler"] = []
+    
     model_flags = copy.deepcopy(vmfbs)
+    # Add sampler to model_flags if we're in split_denoise mode to collect flags for it
+    if args.split_denoise and "sampler" not in model_flags:
+        model_flags["sampler"] = []
+    
     model_flags["all"] = args.compile_flags
 
     if flagfile:
@@ -231,11 +268,18 @@ def get_modules(args, model_config, flagfile, td_spec):
             else:
                 model_flags[flagged_model].extend([elem])
     if td_spec:
-        model_flags["sampler"].extend(
-            [f"--iree-codegen-transform-dialect-library={td_spec}"]
-        )
+        # Only add TD spec to sampler if we have it in model_flags
+        if "sampler" in model_flags:
+            model_flags["sampler"].extend(
+                [f"--iree-codegen-transform-dialect-library={td_spec}"]
+            )
+        # In split mode, copy sampler flags to front/back models
+        if args.split_denoise:
+            model_flags["sampler_front"] = model_flags["sampler"].copy()
+            model_flags["sampler_back"] = model_flags["sampler"].copy()
 
     filenames = []
+    logger.info(f"Processing models: {list(vmfbs.keys())}")
     for modelname in vmfbs.keys():
         ireec_args = model_flags["all"] + model_flags[modelname]
         ireec_extra_args = " ".join(ireec_args)
@@ -255,14 +299,74 @@ def get_modules(args, model_config, flagfile, td_spec):
             f"--iree-compile-extra-args={ireec_extra_args}",
         ]
         logger.info(f"Preparing runtime artifacts for {modelname}...")
-        logger.info(
-            "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
-        )
-        output = subprocess.check_output(builder_args).decode()
-
-        output_paths = output.splitlines()
-        filenames.extend(output_paths)
+        if not args.build_preference == "precompiled":
+            logger.info(
+                "COMMAND LINE EQUIVALENT: " + " ".join([str(argn) for argn in builder_args])
+            )
+        
+        try:
+            # Run the subprocess and capture both stdout and stderr
+            process = subprocess.Popen(
+                builder_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+                bufsize=1
+            )
+            
+            # Collect all stdout and stderr output
+            all_stdout = []
+            all_stderr = []
+            
+            # Read output line by line as it becomes available
+            for line in process.stdout:
+                line = line.rstrip()
+                all_stdout.append(line)
+                # Echo to our own stdout for real-time feedback
+                print(f"BUILDER [{modelname}]: {line}")
+                sys.stdout.flush()
+            
+            # Get the return code
+            process.wait()
+            
+            # Read any stderr after process completes
+            for line in process.stderr:
+                line = line.rstrip()
+                all_stderr.append(line)
+                print(f"BUILDER [{modelname}] - ERROR: {line}")
+                sys.stderr.flush()
+            
+            # Check return code
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(process.returncode, builder_args, 
+                                                   output="\n".join(all_stdout), 
+                                                   stderr="\n".join(all_stderr))
+            
+            # Process the output to get file paths
+            output_paths = [line for line in all_stdout if os.path.exists(line)]
+            filenames.extend(output_paths)
+            
+        except subprocess.CalledProcessError as e:
+            error_msg = f"Failed to fetch artifacts for {modelname}"
+            
+            # Include both stdout and stderr in the error message
+            if hasattr(e, 'output') and e.output:
+                error_msg += f"\nProcess output: {e.output}"
+            
+            if hasattr(e, 'stderr') and e.stderr:
+                error_msg += f"\nProcess stderr: {e.stderr}"
+            
+            # For split model, add more helpful message
+            if hasattr(args, 'split_denoise') and args.split_denoise and modelname in ["sampler_front", "sampler_back"]:
+                error_msg += "\nSplit model files are required but couldn't be found."
+                error_msg += "\nMake sure to export the split model using export_components.py with --split_model flag."
+                
+            logger.error(error_msg)
+            raise RuntimeError(error_msg) from e
+    
+    print(filenames)
     for name in filenames:
+        # Standard file handling
         for key in vmfbs.keys():
             if key == "t5xxl" and all(x in name.lower() for x in ["xxl", "irpa"]):
                 params[key].extend([name])
@@ -271,6 +375,14 @@ def get_modules(args, model_config, flagfile, td_spec):
                     params[key].extend([name])
                 elif "vmfb" in name:
                     vmfbs[key].extend([name])
+    
+    # When using split_denoise, verify that we have the required files
+    if hasattr(args, 'split_denoise') and args.split_denoise:
+        if not vmfbs["sampler_front"] or not vmfbs["sampler_back"]:
+            error_msg = "Split denoise mode requires both sampler_front and sampler_back model files."
+            error_msg += "\nMake sure to export the split model using export_components.py with --split_model flag."
+            raise RuntimeError(error_msg)
+            
     return vmfbs, params
 
 
@@ -293,7 +405,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=str,
         required=False,
         default="gfx942",
-        choices=["gfx942", "gfx1100", "gfx90a"],
+        choices=["gfx942", "gfx1100", "gfx90a", "gfx1201"],
         help="Primary inferencing device LLVM target arch.",
     )
     parser.add_argument(
@@ -394,6 +506,16 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         type=int,
         default=1,
         help="Use tunings for attention and matmul ops. 0 to disable.",
+    )
+    parser.add_argument(
+        "--sequential_mode",
+        action="store_true",
+        help="Use sequential loading of models for lower memory usage.",
+    )
+    parser.add_argument(
+        "--split_denoise",
+        action="store_true",
+        help="Use split front/back model for denoising with sequential loading.",
     )
     args = parser.parse_args(argv)
     if not args.artifacts_dir:
