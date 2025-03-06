@@ -93,10 +93,13 @@ def get_params_filename(model_params: ModelParams, model=None, splat: bool = Fal
         dtype_to_filetag[model_params.clip_dtype],
         dtype_to_filetag[model_params.unet_dtype],
     ]
-    # We're only using the punet i8 dataset in all cases, at the moment.
-    # This is all pretty hokey and could be ModelParams driven.
-    modnames.append("punet")
-    mod_precs.append("i8")
+    logging.info(f"model_params: {model_params}")
+    if model_params.use_punet:
+        modnames.append("punet")
+        mod_precs.append(model_params.unet_attn_dtype)
+    else:
+        modnames.append("unet")
+        mod_precs.append(dtype_to_filetag[model_params.unet_dtype])
     if splat == "True":
         for idx, mod in enumerate(modnames):
             params_filenames.extend(
@@ -130,7 +133,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
         denoise_dict = {
             "scheduled_unet": "scheduled_unet",
         }
-    elif model_params.use_i8_punet or model_params.use_fp8_punet:
+    elif model_params.use_punet:
         denoise_dict = {
             "unet": "punet",
             "scheduler": model_params.scheduler_id + "Scheduler",
@@ -169,12 +172,7 @@ def get_file_stems(model_params: ModelParams) -> list[str]:
                 getattr(model_params, f"{mod}_dtype", sfnp.float16)
             ]
         else:
-            if model_params.use_i8_punet:
-                dtype_str = "i8"
-            elif model_params.use_fp8_punet:
-                dtype_str = "fp8"
-            else:
-                dtype_str = dtype_to_filetag[model_params.unet_dtype]
+            dtype_str = model_params.unet_attn_dtype
         ord_params.extend([[dtype_str]])
         for x in list(itertools.product(*ord_params)):
             file_stems.extend(["_".join(x)])
@@ -314,6 +312,8 @@ def parse_mlir_name(mlir_path):
         width = None
         decomp_attn = True
     precision = [x for x in terms if x in ["i8", "fp8", "fp16", "fp32"]][0]
+    if all(x in terms for x in ["fp8", "ocp"]):
+        precision = "fp8_ocp"
     max_length = 64
     return batch_size, height, width, decomp_attn, precision, max_length
 

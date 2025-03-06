@@ -62,8 +62,11 @@ class ModelParams:
     unet_dtype: sfnp.DType = sfnp.float16
     vae_dtype: sfnp.DType = sfnp.float16
 
-    use_i8_punet: bool = False
-    use_fp8_punet: bool = False
+    # Whether to use sharktank punet. This is the only validated path for now.
+    use_punet: bool = True
+
+    # Which quantization type. fp16, fp8, fp8_ocp. Gets propagated to punet model instantiation.
+    unet_attn_dtype: str = "fp16"
     use_scheduled_unet: bool = False
 
     # ABI of the module.
@@ -76,7 +79,7 @@ class ModelParams:
         return union
 
     @staticmethod
-    def load_json(path: Path | str):
+    def load_json(path):
         with open(path, "rt") as f:
             json_text = f.read()
         raw_params = ModelParams.from_json(json_text)
@@ -86,8 +89,11 @@ class ModelParams:
 
     def __repr__(self):
         return (
-            f"     base model : {self.base_model_name} \n"
-            f"     output size (H,W) : {self.dims} \n"
-            f"     max token sequence length : {self.max_seq_len} \n"
-            f"     classifier free guidance : {self.cfg_mode} \n"
+            f"     base model : {self.base_model_name}\n"
+            f"     unet I/0 dtype : {self.unet_dtype}\n"
+            f"     unet attn dtype : {self.unet_attn_dtype}\n"
+            f"     use punet : {self.use_punet}\n"
+            f"     output size (H,W) : {self.dims}\n"
+            f"     max token sequence length : {self.max_seq_len}\n"
+            f"     classifier free guidance : {self.cfg_mode}\n"
         )
