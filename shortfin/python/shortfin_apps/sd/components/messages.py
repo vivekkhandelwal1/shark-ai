@@ -55,6 +55,7 @@ class InferenceExecRequest(sf.Message):
         | None = None,
         sample: sfnp.device_array | None = None,
         image_array: sfnp.device_array | None = None,
+        sample_indices: list[int] | None = None,
     ):
         super().__init__()
         self.command_buffer = None
@@ -64,6 +65,7 @@ class InferenceExecRequest(sf.Message):
         self.phase = None
         self.height = height
         self.width = width
+        self.sample_indices = sample_indices
 
         # Phase inputs:
         # Prep phase.

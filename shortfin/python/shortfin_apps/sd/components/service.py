@@ -15,6 +15,7 @@ from PIL import Image
 from collections import namedtuple
 import base64
 import gc
+import tracy_client as tracy
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -392,32 +393,39 @@ class InferenceExecutorProcess(sf.Process):
 
     @measure(type="exec", task="inference process")
     async def run(self):
-        try:
-            if not self.exec_request.command_buffer:
-                self.assign_command_buffer(self.exec_request)
+        with tracy.ScopedZone("InferenceExecutorProcess") as zone:
+            zone.text(f"sample_indices: {self.exec_request.sample_indices}")
+            try:
+                if not self.exec_request.command_buffer:
+                    self.assign_command_buffer(self.exec_request)
 
-            device = self.fiber.device(0)
-            phases = self.exec_request.phases
-            if phases[InferencePhase.PREPARE]["required"]:
-                await self._prepare(device=device)
-            if phases[InferencePhase.ENCODE]["required"]:
-                await self._encode(device=device)
-            if phases[InferencePhase.DENOISE]["required"]:
-                await self._denoise(device=device)
-            if phases[InferencePhase.DECODE]["required"]:
-                await self._decode(device=device)
-            if phases[InferencePhase.POSTPROCESS]["required"]:
-                await self._postprocess(device=device)
-            self.exec_request.done.set_success()
+                device = self.fiber.device(0)
+                phases = self.exec_request.phases
+                with tracy.ScopedZone("prepare"):
+                    if phases[InferencePhase.PREPARE]["required"]:
+                        await self._prepare(device=device)
+                with tracy.ScopedZone("encode"):
+                    if phases[InferencePhase.ENCODE]["required"]:
+                        await self._encode(device=device)
+                with tracy.ScopedZone("denoise"):
+                    if phases[InferencePhase.DENOISE]["required"]:
+                        await self._denoise(device=device)
+                with tracy.ScopedZone("decode"):
+                    if phases[InferencePhase.DECODE]["required"]:
+                        await self._decode(device=device)
+                with tracy.ScopedZone("postprocess"):
+                    if phases[InferencePhase.POSTPROCESS]["required"]:
+                        await self._postprocess(device=device)
+                self.exec_request.done.set_success()
 
-        except Exception:
-            logger.exception("Fatal error in image generation")
-            # TODO: Cancel and set error correctly
-            self.exec_request.done.set_success()
+            except Exception:
+                logger.exception("Fatal error in image generation")
+                # TODO: Cancel and set error correctly
+                self.exec_request.done.set_success()
 
-        self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
-        if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
-            self.service.idle_meta_fibers.append(self.meta_fiber)
+            self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
+            if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
+                self.service.idle_meta_fibers.append(self.meta_fiber)
 
     async def _prepare(self, device):
         # Tokenize prompts and negative prompts. We tokenize in bs1 for now and join later.
