@@ -14,6 +14,7 @@ import iree.runtime
 from collections import OrderedDict
 from diffusers import FluxTransformer2DModel
 from sharktank.models.flux.export import (
+    combine_mmdit_data,
     export_flux_transformer_from_hugging_face,
     export_flux_transformer,
     import_flux_transformer_dataset_from_hugging_face,
@@ -305,7 +306,7 @@ class FluxTest(TempDirTestBase):
             }
         )
         target_model = FluxModelV1(
-            theta=target_dataset.root_theta,
+            theta=combine_mmdit_data(target_dataset.root_theta),
             params=FluxParams.from_hugging_face_properties(target_dataset.properties),
         )
 

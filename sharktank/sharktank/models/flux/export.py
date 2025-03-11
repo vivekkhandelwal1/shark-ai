@@ -14,11 +14,48 @@ from ...export import export_static_model_mlir
 from ...tools.import_hf_dataset import import_hf_dataset
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
+from ...types.tensors import PrimitiveTensor, DefaultPrimitiveTensor                                                                                                                                                                                                                                                                                          
+from ...types.theta import Theta
 from ...utils.hf_datasets import get_dataset
 from sharktank.transforms.dataset import set_float_dtype
 
 flux_transformer_default_batch_sizes = [1]
 
+
+def combine_mmdit_data(theta: Theta) -> Theta:
+    """Transforms the theta by combining img/txt weights in MMDITDoubleBlock."""
+    flat_tensors = theta.flatten()
+    new_tensors = {}
+    
+    for name, tensor in flat_tensors.items():
+        # Look for pairs to merge
+        if isinstance(tensor, PrimitiveTensor) and ("img_attn.qkv" in name or "img_attn.norm" in name):
+            # Skip these, we'll be combining these with txt
+            continue
+        elif isinstance(tensor, PrimitiveTensor) and ("txt_attn.qkv" in name or "txt_attn.norm" in name):
+            # Find the corresponding tensor
+            img_name = name.replace("txt", "img")
+
+            # Create combined tensor
+            img_tensor = flat_tensors[img_name]
+            txt_tensor = tensor
+            img_data = img_tensor.as_torch()
+            txt_data = txt_tensor.as_torch()
+            print(name, img_data.shape, txt_data.shape)
+            combined_data = torch.cat([img_data, txt_data], dim=0)
+            
+            # Use the existing img tensor name to ensure the model can find it
+            combined_name = name.replace("txt", "combined")
+            combined_tensor = DefaultPrimitiveTensor(
+                name=combined_name, 
+                data=combined_data
+            )
+            new_tensors[combined_name] = combined_tensor
+        else:
+            # For all other tensors, keep them as they are
+            new_tensors[name] = tensor
+    
+    return Theta(new_tensors)
 
 def export_flux_transformer_model_mlir(
     model_or_parameters_path: FluxModelV1 | PathLike,

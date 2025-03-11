@@ -16,7 +16,7 @@ from .. import ops
 
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
-from .modulation import ModulationLayer
+from .modulation import ModulationLayer, ModulationOut
 from .norm import RMSNormLayer
 import functools
 
@@ -29,6 +29,11 @@ def qk_norm(q, k, v, rms_q, rms_k):
 def apply_rope(xq: Tensor, xk: Tensor, freqs_cis: Tensor) -> tuple[Tensor, Tensor]:
     xq_ = xq.float().reshape(*xq.shape[:-1], -1, 1, 2)
     xk_ = xk.float().reshape(*xk.shape[:-1], -1, 1, 2)
+    # print(freqs_cis.shape, xq_.shape, xk.shape)
+    # freqs_cis = ops.repeat(freqs_cis, [1, 1, 1, 2, 1, 1])
+    # TODO(phaneesh): There is something going wrong either here or soon before
+    # where the sizes are not matching up. Other than that, this is exactly what
+    # Kunwar wants for performance
     xq_out = freqs_cis[..., 0] * xq_[..., 0] + freqs_cis[..., 1] * xq_[..., 1]
     xk_out = freqs_cis[..., 0] * xk_[..., 0] + freqs_cis[..., 1] * xk_[..., 1]
     return xq_out.reshape(*xq.shape).type_as(xq), xk_out.reshape(*xk.shape).type_as(xk)
@@ -50,41 +55,28 @@ class MMDITDoubleBlock(ThetaLayer):
 
         self.num_heads = num_heads
         self.hidden_size = hidden_size
-        self.add_module("img_mod", ModulationLayer(theta("img_mod"), double=True))
-        self.add_module("img_attn_qkv", LinearLayer(theta("img_attn.qkv")))
+        # self.add_module("combined_mod", ModulationLayer(theta("combined_mod"), double=True))
+        self.add_module("combined_attn_qkv", LinearLayer(theta("combined_attn.qkv")))
         self.add_module(
-            "img_attn_norm_q",
+            "combined_attn_norm_q",
             RMSNormLayer(
-                theta("img_attn.norm.query_norm"), weight_name="scale", epsilon=1e-6
+                theta("combined_attn.norm.query_norm"), weight_name="scale", epsilon=1e-6
             ),
         )
         self.add_module(
-            "img_attn_norm_k",
+            "combined_attn_norm_k",
             RMSNormLayer(
-                theta("img_attn.norm.key_norm"), weight_name="scale", epsilon=1e-6
+                theta("combined_attn.norm.key_norm"), weight_name="scale", epsilon=1e-6
             ),
         )
-        self.add_module("img_attn_proj", LinearLayer(theta("img_attn.proj")))
 
+        self.add_module("img_mod", ModulationLayer(theta("img_mod"), double=True))
+        self.add_module("img_attn_proj", LinearLayer(theta("img_attn.proj")))
         self.add_module("img_mlp1", LinearLayer(theta("img_mlp.0")))
         self.add_module("img_mlp2", LinearLayer(theta("img_mlp.2")))
 
         self.add_module("txt_mod", ModulationLayer(theta("txt_mod"), double=True))
-        self.add_module("txt_attn_qkv", LinearLayer(theta("txt_attn.qkv")))
-        self.add_module(
-            "txt_attn_norm_q",
-            RMSNormLayer(
-                theta("txt_attn.norm.query_norm"), weight_name="scale", epsilon=1e-6
-            ),
-        )
-        self.add_module(
-            "txt_attn_norm_k",
-            RMSNormLayer(
-                theta("txt_attn.norm.key_norm"), weight_name="scale", epsilon=1e-6
-            ),
-        )
         self.add_module("txt_attn_proj", LinearLayer(theta("txt_attn.proj")))
-
         self.add_module("txt_mlp1", LinearLayer(theta("txt_mlp.0")))
         self.add_module("txt_mlp2", LinearLayer(theta("txt_mlp.2")))
 
@@ -94,40 +86,37 @@ class MMDITDoubleBlock(ThetaLayer):
         img_mod1, img_mod2 = self.img_mod(vec)
         txt_mod1, txt_mod2 = self.txt_mod(vec)
 
-        # prepare image for attention
+        # Perform scale and shift separately
         img_modulated = ops.layer_norm(
             img, normalized_shape=(self.hidden_size,), weight=None, bias=None, eps=1e-6
         )
         img_modulated = (1 + img_mod1.scale) * img_modulated + img_mod1.shift
-        img_qkv = self.img_attn_qkv(img_modulated)
-        img_qkv_2 = img_qkv.view(
-            img_qkv.shape[0], img_qkv.shape[1], 3, self.num_heads, -1
-        )  #
-        img_qkv_3 = ops.permute(img_qkv_2, (2, 0, 3, 1, 4))
-        img_q, img_k, img_v = img_qkv_3
-        img_q, img_k = qk_norm(
-            img_q, img_k, img_v, self.img_attn_norm_q, self.img_attn_norm_k
-        )
-
-        # prepare text for attention
         txt_modulated = ops.layer_norm(
             txt, normalized_shape=(self.hidden_size,), weight=None, bias=None, eps=1e-6
         )
         txt_modulated = (1 + txt_mod1.scale) * txt_modulated + txt_mod1.shift
-        txt_qkv = self.txt_attn_qkv(txt_modulated)
-        txt_qkv_2 = txt_qkv.view(
-            txt_qkv.shape[0], txt_qkv.shape[1], 3, self.num_heads, -1
-        )  #
-        txt_qkv_3 = ops.permute(txt_qkv_2, (2, 0, 3, 1, 4))
-        txt_q, txt_k, txt_v = txt_qkv_3
-        txt_q, txt_k = qk_norm(
-            txt_q, txt_k, txt_v, self.txt_attn_norm_q, self.txt_attn_norm_k
-        )
 
-        # run actual attention
-        q = torch.cat((txt_q, img_q), dim=2)
-        k = torch.cat((txt_k, img_k), dim=2)
-        v = torch.cat((txt_v, img_v), dim=2)
+        # Concatenate before attention
+        # NOTE(Phaneesh): This is exactly where the concat should go.
+        modulated = ops.cat([txt_modulated, img_modulated], dim=1)
+        # print(modulated.shape)
+        qkv = self.combined_attn_qkv(modulated)
+        # print(qkv.shape)
+        qkv_2 = qkv.view(
+            qkv.shape[0], qkv.shape[1], 3, self.num_heads, -1
+        )
+        qkv_3 = ops.permute(qkv_2, (2, 0, 3, 1, 4))
+        q, k, v = qkv_3
+        q, k = qk_norm(
+            q, k, v, self.combined_attn_norm_q, self.combined_attn_norm_k
+        )
+        # print("qk")
+        # print(q.shape)
+        # q = q.reshape(q.shape[0], q.shape[1], 2 * q.shape[2], q.shape[3]//2)
+        # print(q.shape)
+        # print(k.shape)
+        # k = k.reshape(k.shape[0], k.shape[1], 2 * k.shape[2], k.shape[3]//2)
+        # print(k.shape)
 
         attn = attention(q, k, v, pe)
         txt_attn, img_attn = attn[:, : txt.shape[1]], attn[:, txt.shape[1] :]
