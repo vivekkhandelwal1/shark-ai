@@ -188,9 +188,10 @@ def test_prefill_logits_from_server(model_artifacts, server):
     - improper masking in sharktank
     """
     process, port = server
-    print("PORT:", port)
-    gen_req = generate_request(prompt="1, 2, 3, 4, 5", port=port)
+    assert process.poll() is None, "Server process terminated unexpectedly"
+    response = generate_request("The capital of Texas is", port)
+    logger.info(f"RESPONSE: {response}")
     # gen_req.post_init()
     # responder = FastAPIResponder(request)
-    client_process = generate.ClientGenerateBatchProcess(server, gen_req, responder)
-    client_process.launch()
+    # client_process = generate.ClientGenerateBatchProcess(server, gen_req, responder)
+    # client_process.launch()
