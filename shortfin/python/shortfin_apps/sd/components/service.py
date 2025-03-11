@@ -573,51 +573,55 @@ class InferenceExecutorProcess(sf.Process):
         return
 
     async def _decode(self, device):
-        req_bs = self.exec_request.batch_size
-        prog_bs = req_bs
-        cb = self.exec_request.command_buffer
-        # Decode latents to images
-        entrypoints = self.service.inference_functions[self.worker_index]["decode"]
-        if req_bs not in list(entrypoints.keys()):
-            prog_bs = 1
-        for bs, fns in entrypoints.items():
-            if bs == prog_bs:
-                break
-            raise RuntimeError(f"Decode program batch size {prog_bs} not found.")
-        if req_bs != prog_bs:
-            for i in range(req_bs):
-                # Decode the denoised latents.
+        with tracy.ScopedZone("dipatch"):
+            req_bs = self.exec_request.batch_size
+            prog_bs = req_bs
+            cb = self.exec_request.command_buffer
+            # Decode latents to images
+            entrypoints = self.service.inference_functions[self.worker_index]["decode"]
+            if req_bs not in list(entrypoints.keys()):
+                prog_bs = 1
+            for bs, fns in entrypoints.items():
+                if bs == prog_bs:
+                    break
+                raise RuntimeError(f"Decode program batch size {prog_bs} not found.")
+            if req_bs != prog_bs:
+                for i in range(req_bs):
+                    # Decode the denoised latents.
+                    logger.debug(
+                        "INVOKE %r: %s",
+                        fns["decode"],
+                        "".join([f"\n  0: {cb.latents.shape}"]),
+                    )
+                    res = cb.images.view(i)
+                    (res,) = await fns["decode"](cb.latents.view(i), fiber=self.fiber)
+                    cb.images.view(i).copy_from(res)
+            else:
                 logger.debug(
                     "INVOKE %r: %s",
                     fns["decode"],
                     "".join([f"\n  0: {cb.latents.shape}"]),
                 )
-                res = cb.images.view(i)
-                (res,) = await fns["decode"](cb.latents.view(i), fiber=self.fiber)
-                cb.images.view(i).copy_from(res)
-        else:
-            logger.debug(
-                "INVOKE %r: %s",
-                fns["decode"],
-                "".join([f"\n  0: {cb.latents.shape}"]),
-            )
-            (cb.images,) = await fns["decode"](cb.latents, fiber=self.fiber)
-        cb.images_host.copy_from(cb.images)
+                (cb.images,) = await fns["decode"](cb.latents, fiber=self.fiber)
+        with tracy.ScopedZone("copy images"):
+            cb.images_host.copy_from(cb.images)
 
         # Wait for the device-to-host transfer, so that we can read the
         # data with .items.
-        check_host_array(cb.images_host)
+        with tracy.ScopedZone("check_host_array"):
+            check_host_array(cb.images_host)
 
-        image_array = cb.images_host.items
-        dtype = image_array.typecode
-        if cb.images_host.dtype == sfnp.float16:
-            dtype = np.float16
-        self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
-            self.exec_request.batch_size,
-            3,
-            self.exec_request.height,
-            self.exec_request.width,
-        )
+        with tracy.ScopedZone("reshape"):
+            image_array = cb.images_host.items
+            dtype = image_array.typecode
+            if cb.images_host.dtype == sfnp.float16:
+                dtype = np.float16
+            self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
+                self.exec_request.batch_size,
+                3,
+                self.exec_request.height,
+                self.exec_request.width,
+            )
         return
 
     async def _postprocess(self, device):
