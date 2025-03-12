@@ -92,15 +92,18 @@ class SDXLGenerateService(GenerateService):
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {}
 
-    def equip_fiber(self, fiber, idx, worker_idx):
+    def equip_fiber(self, fiber, idx: int, worker_idx: int):
+        """Equip a fiber with additional metadata and command buffers."""
         MetaFiber = namedtuple(
             "MetaFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers"]
         )
-        cb_sets_per_fiber = 1
+        cbs_per_fiber = 1
         cbs = []
-        for _ in range(cb_sets_per_fiber):
-            for bs in self.model_params.all_batch_sizes:
-                cbs.append(initialize_command_buffer(fiber, self.model_params, bs=bs))
+        for _ in range(cbs_per_fiber):
+            for batch_size in self.model_params.all_batch_sizes:
+                cbs.append(
+                    initialize_command_buffer(fiber, self.model_params, batch_size)
+                )
 
         return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
 
@@ -162,12 +165,14 @@ class SDXLGenerateService(GenerateService):
                     )
                     self.inference_programs[worker_idx][component][
                         batch_size
-                    ] = sf.Program(
-                        modules=component_modules,
+                    ] = self.create_program(
+                        modules=component_modules, 
                         devices=worker_devices,
                         isolation=self.prog_isolation,
                         trace_execution=self.trace_execution,
                     )
+        self.initialize_inference_functions()
+        self.batcher.launch()
 
     def initialize_inference_functions(self):
         for worker_idx, worker in enumerate(self.workers):
@@ -193,42 +198,6 @@ class SDXLGenerateService(GenerateService):
                         fn_dest[fn] = self.inference_programs[worker_idx][submodel][bs][
                             ".".join([module_name, fn])
                         ]
-        if self.use_batcher:
-            self.batcher.launch()
-
-    def shutdown(self):
-        if self.use_batcher:
-            self.batcher.shutdown()
-            del self.batcher
-        del self.idle_meta_fibers
-        del self.meta_fibers
-        del self.workers
-        gc.collect()
-
-    def __repr__(self):
-        modules = [
-            f"     {key} : {value}" for key, value in self.inference_modules.items()
-        ]
-        params = [
-            f"     {key} : {value}" for key, value in self.inference_parameters.items()
-        ]
-        # For python 3.11 since we can't have \ in the f"" expression.
-        new_line = "\n"
-        return (
-            f"ServiceManager("
-            f"\n  INFERENCE DEVICES : \n"
-            f"     {self.sysman.ls.devices}\n"
-            f"\n  MODEL PARAMS : \n"
-            f"{self.model_params}"
-            f"\n  SERVICE PARAMS : \n"
-            f"     fibers per device : {self.fibers_per_device}\n"
-            f"     program isolation mode : {self.prog_isolation}\n"
-            f"\n  INFERENCE MODULES : \n"
-            f"{new_line.join(modules)}\n"
-            f"\n  INFERENCE PARAMETERS : \n"
-            f"{new_line.join(params)}\n"
-            f")"
-        )
 
 
 ########################################################################################
@@ -324,7 +293,6 @@ class InferenceExecutorProcess(sf.Process):
     async def run(self):
         try:
             device = self.fiber.device(0)
-
             if not self.exec_request.command_buffer:
                 self.assign_command_buffer(self.exec_request)
                 await device
