@@ -321,9 +321,6 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
 
     output_dir = os.path.dirname(external_weight_path)
 
-    # if os.path.exists(external_weight_path):
-    #     from sharktank.models.punet.tools import import_brevitas_dataset
-    #     ds = import_brevitas_dataset.Dataset.load(external_weight_path)
     if (
         quant_paths
         and quant_paths["quant_params"]
