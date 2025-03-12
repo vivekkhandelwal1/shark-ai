@@ -144,6 +144,7 @@ def configure_service(args, sysman, model_config, flagfile, tuning_spec):
         prog_isolation=args.isolation,
         show_progress=args.show_progress,
         trace_execution=args.trace_execution,
+        splat=args.splat,
     )
     for key, vmfb_dict in vmfbs.items():
         for bs in vmfb_dict.keys():

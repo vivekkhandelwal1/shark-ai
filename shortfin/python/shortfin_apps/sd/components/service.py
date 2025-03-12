@@ -46,6 +46,7 @@ class SDXLGenerateService(GenerateService):
         show_progress: bool = False,
         trace_execution: bool = False,
         use_batcher: bool = True,
+        splat: bool = False,
     ):
         super().__init__(sysman, fibers_per_device, workers_per_device)
         self.name = name
@@ -57,6 +58,7 @@ class SDXLGenerateService(GenerateService):
         self.inference_programs: dict[int, dict[str, sf.Program]] = {}
         self.trace_execution = trace_execution
         self.show_progress = show_progress
+        self.splat_weights = splat
 
         # Finish initialization
         self.set_isolation(prog_isolation)
@@ -522,7 +524,10 @@ class InferenceExecutorProcess(sf.Process):
 
         # Wait for the device-to-host transfer, so that we can read the
         # data with .items.
-        check_host_array(cb.images_host)
+        if self.service.splat_weights:
+            await device
+        else:
+            check_host_array(cb.images_host)
 
         image_array = cb.images_host.items
         dtype = image_array.typecode
