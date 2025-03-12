@@ -22,7 +22,7 @@ import shortfin.array as sfnp
 from ...utils import GenerateService, BatcherProcess
 
 from .config_struct import ModelParams
-from .manager import SystemManager
+from .manager import SDXLSystemManager
 from .messages import SDXLInferenceExecRequest, InferencePhase
 from .tokenizer import Tokenizer
 from .metrics import measure, log_duration_str
@@ -37,7 +37,7 @@ class SDXLGenerateService(GenerateService):
         self,
         *,
         name: str,
-        sysman: SystemManager,
+        sysman: SDXLSystemManager,
         tokenizers: list[Tokenizer],
         model_params: ModelParams,
         fibers_per_device: int,
