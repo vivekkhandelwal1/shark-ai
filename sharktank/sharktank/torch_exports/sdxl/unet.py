@@ -163,7 +163,7 @@ def get_scheduled_unet_model_and_inputs(
         precision,
     )
     if not scheduler_config_path:
-        scheduler_config_path=hf_model_name
+        scheduler_config_path = hf_model_name
     raw_scheduler = get_scheduler(scheduler_config_path, "EulerDiscrete")
     model = ScheduledUnetModel(
         hf_model_name,
@@ -212,8 +212,8 @@ def get_punet_model_and_inputs(
     precision,
     batch_size,
     external_weight_path,
-    quant_path = None,
-    scheduler_config_path = None,
+    quant_path=None,
+    scheduler_config_path=None,
 ):
     from sharktank.models.punet.model import ClassifierFreeGuidanceUnetModel as CFGPunet
 
@@ -278,7 +278,7 @@ def get_punet_model(hf_model_name, external_weight_path, quant_paths, precision=
         repo_id = "amd-shark/sdxl-quant-int8"
         subfolder = "mi300_all_sym_8_step14_fp32"
         revision = "efda8afb35fd72c1769e02370b320b1011622958"
-    
+
     # TODO (monorimet): work through issues with pure fp16 punet export. Currently int8 with fp8/fp8_ocp/fp16 sdpa are supported.
     # elif precision != "fp16":
     #     repo_id = "amd-shark/sdxl-quant-int8"
