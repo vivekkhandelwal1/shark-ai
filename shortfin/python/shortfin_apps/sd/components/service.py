@@ -166,7 +166,7 @@ class SDXLGenerateService(GenerateService):
                     self.inference_programs[worker_idx][component][
                         batch_size
                     ] = self.create_program(
-                        modules=component_modules, 
+                        modules=component_modules,
                         devices=worker_devices,
                         isolation=self.prog_isolation,
                         trace_execution=self.trace_execution,
