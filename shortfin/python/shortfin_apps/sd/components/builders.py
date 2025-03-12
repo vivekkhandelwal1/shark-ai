@@ -6,7 +6,6 @@
 
 from iree.build import *
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
-from iree.turbine.aot.build_actions import turbine_generate
 
 import itertools
 import os
@@ -15,9 +14,9 @@ import shortfin.array as sfnp
 import copy
 import re
 import gc
+import logging
 
 from shortfin_apps.sd.components.config_struct import ModelParams
-from shortfin_apps.sd.components.exports import export_sdxl_model
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent = os.path.dirname(this_dir)
@@ -366,14 +365,16 @@ def sdxl(
     mlir_filenames = get_mlir_filenames(model_params, model)
     vmfb_filenames = get_vmfb_filenames(model_params, model=model, target=target)
 
-    if params_filename is not None:
-        params_filepath = ctx.allocate_file(
-            params_filename, FileNamespace.GEN
-        ).get_fs_path()
-    else:
-        params_filepath = None
-
     if build_preference == "export":
+        from iree.turbine.aot.build_actions import turbine_generate
+        from shortfin_apps.sd.components.exports import export_sdxl_model
+
+        if params_filename is not None:
+            params_filepath = ctx.allocate_file(
+                params_filename, FileNamespace.GEN
+            ).get_fs_path()
+        else:
+            params_filepath = None
         for idx, mlir_path in enumerate(mlir_filenames):
             # If generating multiple MLIR, we only save the weights the first time.
             needs_gen_params = False

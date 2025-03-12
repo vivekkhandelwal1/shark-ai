@@ -90,11 +90,6 @@ class SDXLGenerateService(GenerateService):
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {}
 
-        # Scope dependent objects.
-        self.use_batcher = use_batcher
-        if self.use_batcher:
-            self.batcher = BatcherProcess(self)
-
     def equip_fiber(self, fiber, idx, worker_idx):
         MetaFiber = namedtuple(
             "MetaFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers"]
