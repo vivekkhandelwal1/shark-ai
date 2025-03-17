@@ -17,7 +17,7 @@ from shortfin.interop.fastapi import FastAPIResponder
 
 from .io_struct import GenerateReqInput
 from .messages import LlmInferenceExecRequest, InferencePhase
-from .service import LlmGenerateService
+from .service import GenerateService
 from .tokenizer import Encoding
 
 logger = logging.getLogger(__name__)
@@ -52,36 +52,46 @@ class GenerateItemProcess(sf.Process):
         self.streamed_tokens_index = 0
 
     async def run(self):
-        logger.info("HERE 2")
         exec = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
         )
-        exec.return_all_logits = True
         try:
+            exec.return_host_array = True
             self.client.batcher.submit(exec)
             await exec.done
 
             # Prefill result.
-            logger.info(f"exec: {exec}")
-            token = sfnp.argmax(exec.result_logits)
-            token_int = token.items[0]
+            if self.gen_req.return_logprob == True:
+                logger.error(f"RETURN LOGPROB: {self.gen_req.return_logprob}")
+                logger.error(f"PREFILL LOGITS 2: {exec.result_logits}")
+                logger.error("PREFILL TESTS 2")
+                # save prefill logits
+                import numpy as np
+
+                np.save("prefill_logits.npy", exec.result_logits)
+                token_int = exec.result_logits
+            else:
+                token = sfnp.argmax(exec.result_logits)
+                token_int = token.items[0]
 
             self.append_token(token_int)
             # Decode loop.
-            exec.start_position = len(self.input_token_ids) - 1
-            for i in range(self.max_completion_tokens):
-                exec.reset(InferencePhase.DECODE)
-                exec.input_token_ids.append(token_int)
-                exec.start_position += 1
-                self.client.batcher.submit(exec)
-                await exec.done
-                token = sfnp.argmax(exec.result_logits)
-                token_int = token.items[0]
-                self.append_token(token_int)
-                if token_int == self.eos_token_id:
-                    break
+            # exec.start_position = len(self.input_token_ids) - 1
+            # for i in range(self.max_completion_tokens):
+            #     exec.reset(InferencePhase.DECODE)
+            #     exec.input_token_ids.append(token_int)
+            #     exec.start_position += 1
+            #     self.client.batcher.submit(exec)
+            #     await exec.done
+            #     token = sfnp.argmax(exec.result_logits)
+            #     # logger.error(f"DECODE LOGITS 2: {exec.result_logits}")
+            #     # logger.error("DECODE TESTS 2")
+            #     token_int = token.items[0]
+            #     self.append_token(token_int)
+            #     if token_int == self.eos_token_id:
+            #         break
         finally:
             exec.free_cache_pages()
 
@@ -111,7 +121,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
     def __init__(
         self,
-        service: LlmGenerateService,
+        service: GenerateService,
         gen_req: GenerateReqInput,
         responder: FastAPIResponder,
     ):
@@ -131,7 +141,6 @@ class ClientGenerateBatchProcess(sf.Process):
         try:
             # Launch all individual generate processes and wait for them to finish.
             gen_processes = []
-            logger.info("HEREEEE")
             input_ids = self.gen_req.input_ids
             is_pretokenized = input_ids is not None
             # TODO: We should send this to an executor and await the results.

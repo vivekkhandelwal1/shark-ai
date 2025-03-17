@@ -191,7 +191,3 @@ def test_prefill_logits_from_server(model_artifacts, server):
     assert process.poll() is None, "Server process terminated unexpectedly"
     response = generate_request("The capital of Texas is", port)
     logger.info(f"RESPONSE: {response}")
-    # gen_req.post_init()
-    # responder = FastAPIResponder(request)
-    # client_process = generate.ClientGenerateBatchProcess(server, gen_req, responder)
-    # client_process.launch()
