@@ -38,6 +38,39 @@ SDXL_WEIGHTS_BUCKET = (
     "https://sharkpublic.blob.core.windows.net/sharkpublic/sdxl/weights/"
 )
 
+def find_modules(
+    target,
+    device,
+    model_config,
+    flagfile=None,
+    td_spec=None,
+    extra_compile_flags=[],
+    artifacts_dir=None,
+    splat=False,
+    build_preference="export",
+    force_update=False,
+):
+    from shortfin_apps.sd.components.config_struct import ModelParams
+
+    mod_params = ModelParams.load_json(model_config)
+    vmfbs_dir = os.path.join(artifacts_dir, "bin", "sdxl")
+    params_dir = os.path.join(artifacts_dir, "genfiles", "sdxl")
+
+    vmfbs = {}
+    params = {}
+    for submodel in mod_params.module_names.keys():
+        vmfb_filenames = get_vmfb_filenames(mod_params, submodel, "amdgpu" + target)
+        vmfbs[submodel] = {}
+        for bs in mod_params.batch_sizes[submodel]:
+            vmfbs[submodel][bs] = [os.path.join(vmfbs_dir, vmfb_filename) for vmfb_filename in vmfb_filenames]
+            for filepath in vmfbs[submodel][bs]:
+                if not os.path.exists(filepath):
+                    raise FileNotFoundError(f"{filepath} not found. Please run precompile_model_shortfin.sh as instructed in the README.")
+        if submodel != "scheduler":
+            params[submodel] = [os.path.join(params_dir, get_params_filename(mod_params, submodel, splat=False))]
+            if not os.path.exists(params[submodel][0]):
+                raise FileNotFoundError(f"{params[submodel][0]} not found. Please run precompile_model_shortfin.sh as instructed in the README.")
+    return vmfbs, params
 
 def filter_by_model(filenames, model) -> list:
     if not model:
