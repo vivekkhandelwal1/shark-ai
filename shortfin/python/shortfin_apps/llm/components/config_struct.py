@@ -27,7 +27,8 @@ from .token_selection_strategy.config import LogitsNormalization
 
 
 def _decode_dtype(name: str) -> sfnp.DType:
-    if name in dtype_map:
+    obj = getattr(sfnp, name, None)
+    if name in dtype_map and isinstance(obj, sfnp.DType):
         return dtype_map[name]
     else:
         raise ValueError(f"{name} is not a recognized dtype")
