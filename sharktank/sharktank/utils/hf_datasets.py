@@ -145,6 +145,23 @@ Dataset(
 ).alias_to("llama3_8B_q8_0")
 
 Dataset(
+    "xtuner/llava-llama-3-8b-v1_1-gguf",
+    (
+        RemoteFile(
+            "gguf",
+            "xtuner/llava-llama-3-8b-v1_1-gguf",
+            "llava-llama-3-8b-v1_1-f16.gguf",
+        ),
+        RemoteFile(
+            "tokenizer_config.json",
+            "xtuner/llava-llama-3-8b-v1_1-hf",
+            "tokenizer_config.json",
+            extra_filenames=["tokenizer.json"],
+        ),
+    ),
+).alias_to("llava-llama-3-8b-v1_1-gguf")
+
+Dataset(
     "SlyEcho/open_llama_3b_v2_f16_gguf",
     (
         RemoteFile(
