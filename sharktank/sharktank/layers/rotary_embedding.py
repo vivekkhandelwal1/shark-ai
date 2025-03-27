@@ -51,6 +51,18 @@ class RotaryEmbeddingLayer(BaseLayer):
         start_index: int,
     ):
         table = self.rotary_embed_table
+        if isinstance(xt, ReplicatedTensor):
+            return ReplicatedTensor(
+                ts=[
+                    self.forward_unsharded(
+                        xt=unbox_tensor(s),
+                        start_index=start_index,
+                        rotary_embed_table=unbox_tensor(t),
+                    )
+                    for s, t in zip(xt.shards, table.shards)
+                ]
+            )
+
         if not isinstance(xt, SplitPrimitiveTensor):
             return self.forward_unsharded(
                 xt=xt,
@@ -275,16 +287,17 @@ class RotaryEmbeddingLayer(BaseLayer):
             )
             freqs = torch.where(is_medium_freq, smoothed_inv_freq, inv_freq_llama)
 
-            freqs = torch.cat((freqs, freqs), dim=-1)
-            emb = torch.outer(t.float(), freqs.float())
+            freqs = torch.cat((freqs, freqs), dim=-1).to(device=self.device)
+            emb = t.unsqueeze(1).float() * freqs.unsqueeze(0).float()
+
             cos = torch.cos(emb).to(self.dtype)
             sin = torch.sin(emb).to(self.dtype)
             return (cos, sin)
 
         freqs = 1.0 / (
             self.rope_freq_base ** ((torch.arange(0, dim) // 2).float() / dim * 2.0)
-        )
-        freqs = torch.outer(t, freqs).float()
+        ).to(device=self.device)
+        freqs = (t.unsqueeze(1) * freqs.unsqueeze(0)).float()
         return freqs
 
     def _create_rotary_embed_table(self):

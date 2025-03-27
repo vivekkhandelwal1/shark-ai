@@ -19,6 +19,7 @@ from sharktank.layers import BaseLayer
 from sharktank.utils import debugging
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.utils.iree import (
+    with_iree_device_context,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
@@ -248,7 +249,7 @@ class RmsNormTest(unittest.TestCase):
     def testTorchImpl(self):
         t1 = torch.rand(16, 128, dtype=torch.float32)
         t2 = torch.rand(16, 128, dtype=torch.float32)
-        result = ops.rms_norm(t1, t2, epsilon=1e-10)
+        result = ops.rms_norm(t1, t2, epsilon=1e-10, orig_dtype=torch.float32)
         actual = self._ref(t1, t2, epsilon=1e-10)
         torch.testing.assert_close(actual, result)
 
@@ -256,7 +257,7 @@ class RmsNormTest(unittest.TestCase):
         t1 = torch.rand(16, 128, dtype=torch.float32)
         t2 = torch.rand(16, 128, dtype=torch.float32)
         t2_pt = DefaultPrimitiveTensor(data=t2)
-        result = ops.rms_norm(t1, t2_pt, epsilon=1e-10)
+        result = ops.rms_norm(t1, t2_pt, epsilon=1e-10, orig_dtype=torch.float32)
         actual = self._ref(t1, t2, epsilon=1e-10)
         torch.testing.assert_close(actual, result)
 
@@ -367,26 +368,32 @@ class TestTraceTensors(TempDirTestBase):
         )
 
         iree_devices = get_iree_devices(driver="local-task", device_count=1)
-        iree_buffere_view_trace_callback = make_hal_buffer_view_trace_default_callback(
-            iree_devices[0]
-        )
-        debug_sink = iree.runtime.HalModuleDebugSink(iree_buffere_view_trace_callback)
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            debug_sink=debug_sink,
-        )
-        iree_args = prepare_iree_module_function_args(
-            args=[tensor],
-            devices=iree_devices,
-        )
-        run_iree_module_function(
-            module=iree_module,
-            vm_context=iree_vm_context,
-            args=iree_args,
-            driver="local-task",
-            function_name=f"forward",
-        )
+
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            iree_buffere_view_trace_callback = (
+                make_hal_buffer_view_trace_default_callback(iree_devices[0])
+            )
+            debug_sink = iree.runtime.HalModuleDebugSink(
+                iree_buffere_view_trace_callback
+            )
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                debug_sink=debug_sink,
+            )
+            iree_args = prepare_iree_module_function_args(
+                args=[tensor],
+                devices=iree_devices,
+            )
+            run_iree_module_function(
+                module=iree_module,
+                vm_context=iree_vm_context,
+                args=iree_args,
+                device=iree_devices[0],
+                function_name=f"forward",
+            )
+
+        with_iree_device_context(run_iree_module, iree_devices)
 
         trace_filepath = debugging.flags.trace_path / f"{trace_key}.safetensors"
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:

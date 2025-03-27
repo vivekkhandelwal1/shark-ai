@@ -6,17 +6,14 @@
 
 from typing import Optional
 
-from dataclasses import dataclass
 from typing import Union
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from ...layers import *
 from ...types import *
 from ...utils.create_cache import *
-from ... import ops
 
 __all__ = [
     "PagedLlamaModelV1",
@@ -37,7 +34,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
     The inference procedure is typically:
 
-    1. Initialize the PagedKVCache state tensors.
+    1. Initialize the kv cache state tensors.
     2. Generate an input mask given a vector of sequence lengths.
     3. Generate an attention mask from the input mask.
     4. Allocate a block mapping table.
@@ -82,7 +79,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
 
         self.add_module(
             "token_embedding",
-            TokenEmbeddingLayer(theta("token_embd"), dtype=config.activation_dtype),
+            TokenEmbeddingLayer(theta("token_embd"), dtype=self.activation_dtype),
         )
         self.add_module(
             "attention_embedding",
@@ -93,6 +90,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                 device=self.device,
                 use_hf=self.use_hf,
                 tensor_parallelism_size=config.tensor_parallelism_size,
+                dtype=config.activation_dtype,
             ),
         )
         self.add_module(
@@ -112,6 +110,7 @@ class PagedLlamaModelV1(BaseCausalLMModel):
                     head_dim=hp.attn_head_dim,
                     head_count_kv=hp.attention_head_count_kv,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
+                    attention_dtype=config.attention_dtype,
                     attention_kernel=self.attention_kernel,
                     fake_quant=self.fake_quant,
                 )
@@ -231,11 +230,12 @@ class AttentionFFNBlock(ThetaLayer):
         theta: Theta,
         *,
         block_index: int,
-        cache: PagedKVCache,
+        cache: PagedAttention,
         head_count: int,
         head_dim: int,
         head_count_kv: int,
         rms_epsilon: float,
+        attention_dtype: Optional[torch.dtype] = None,
         attention_kernel: str = "decomposed",
         fake_quant: bool = True,
     ):
@@ -250,6 +250,7 @@ class AttentionFFNBlock(ThetaLayer):
                 head_dim=head_dim,
                 head_count_kv=head_count_kv,
                 rms_epsilon=rms_epsilon,
+                attention_dtype=attention_dtype,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
             ),
@@ -258,6 +259,7 @@ class AttentionFFNBlock(ThetaLayer):
             "ffn",
             FFN(
                 theta=theta,
+                fake_quant=fake_quant,
             ),
         )
         self.add_module(

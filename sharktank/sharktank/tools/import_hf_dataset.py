@@ -48,9 +48,10 @@ def import_hf_dataset(
     meta_params = {k: v for k, v in config_json.items() if k.startswith("_")}
     hparams = {k: v for k, v in config_json.items() if not k.startswith("_")}
 
+    tensors = []
     for params_path in param_paths:
         with safetensors.safe_open(params_path, framework="pt", device="cpu") as st:
-            tensors = [
+            tensors += [
                 DefaultPrimitiveTensor(
                     name=name, data=st.get_tensor(name).to(target_dtype)
                 )
@@ -67,7 +68,7 @@ def import_hf_dataset(
     if output_irpa_file is None:
         return dataset
 
-    dataset.save(output_irpa_file, io_report_callback=logger.info)
+    dataset.save(output_irpa_file, io_report_callback=logger.debug)
 
 
 def main(argv: list[str]):

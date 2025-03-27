@@ -11,7 +11,15 @@ from typing import Optional, Sequence, Union, List, Tuple
 import torch
 import numbers
 from torch import Tensor, dtype
-from ..types import AnyTensor, ShardedTensor, Theta, sharding, InferenceTensor
+
+from ..types import (
+    AnyTensor,
+    ShardedTensor,
+    Theta,
+    sharding,
+    InferenceTensor,
+    PrimitiveTensor,
+)
 from numbers import Number
 import math
 
@@ -58,6 +66,7 @@ __all__ = [
     "softmax",
     "squeeze",
     "to",
+    "topk",
     "trace_tensor",
     "transfer_to_logical_device",
     "transpose",
@@ -769,18 +778,25 @@ def _module_register_buffer_trampoline(
 
 
 @overridable
-def rms_norm(x: AnyTensor, weight: AnyTensor, *, epsilon: float) -> AnyTensor:
+def rms_norm(
+    x: AnyTensor, weight: AnyTensor, *, epsilon: float, orig_dtype: torch.dtype
+) -> AnyTensor:
     """Computes the full, unbiased RMS normalization of an input."""
     raise NotImplementedError
 
 
 @rms_norm.trampoline
 def _rms_norm_trampoline(
-    d: SignatureDispatcher, x: AnyTensor, weight: AnyTensor, *, epsilon: float
+    d: SignatureDispatcher,
+    x: AnyTensor,
+    weight: AnyTensor,
+    *,
+    epsilon: float,
+    orig_dtype: torch.dtype,
 ):
     tensors = (x, weight)
     for override in d.find_overrides(tensors):
-        result = override(x, weight, epsilon=epsilon)
+        result = override(x, weight, epsilon=epsilon, orig_dtype=orig_dtype)
         if result is not NotImplemented:
             return override, result
     else:
@@ -807,7 +823,9 @@ def _repeat_trampoline(
 
 
 @overridable
-def replicate(input: AnyTensor, count: int) -> ShardedTensor:
+def replicate(
+    input: AnyTensor, count: int, devices: tuple[int, ...] | None
+) -> ShardedTensor:
     """Replicate across devices.
 
     Possibly reshards if required."""
@@ -816,11 +834,19 @@ def replicate(input: AnyTensor, count: int) -> ShardedTensor:
 
 @replicate.trampoline
 def _replicate_trampoline(
-    d: SignatureDispatcher, input: AnyTensor, count: int
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    count: int,
+    devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
+    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
+        devices = devices if devices is not None else tuple(range(count))
+    else:
+        assert devices is None
+
     for override in d.find_overrides(tensors):
-        result = override(input, count=count)
+        result = override(input, count=count, devices=devices)
         if result is not NotImplemented:
             return override, result
     else:
@@ -852,7 +878,10 @@ def _scaled_dot_product_attention(
 ):
     tensors = (q, k, v, a)
     for override in d.find_overrides(tensors):
-        result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+        if is_causal is not None:
+            result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+        else:
+            result = override(q, k, v, a, scale=scale)
         if result is not NotImplemented:
             return override, result
     else:
@@ -905,7 +934,9 @@ def _reshard_trampoline(d: SignatureDispatcher, input, spec) -> ShardedTensor:
 
 
 @overridable
-def reshard_split(input: AnyTensor, *, dim: int, count: int) -> ShardedTensor:
+def reshard_split(
+    input: AnyTensor, *, dim: int, count: int, devices: tuple[int, ...] | None
+) -> ShardedTensor:
     """Split `input` along `dim`.
     This does not mean that a sharded tensor is further sharded.
     It is not composition of sharding operations.
@@ -915,11 +946,20 @@ def reshard_split(input: AnyTensor, *, dim: int, count: int) -> ShardedTensor:
 
 @reshard_split.trampoline
 def _reshard_split_trampoline(
-    d: SignatureDispatcher, input: AnyTensor, dim: int, count: int
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    dim: int,
+    count: int,
+    devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
+    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
+        devices = devices if devices is not None else tuple(range(count))
+    else:
+        assert devices is None
+
     for override in d.find_overrides(tensors):
-        result = override(input, dim=dim, count=count)
+        result = override(input, dim=dim, count=count, devices=devices)
         if result is not NotImplemented:
             return override, result
     else:
@@ -1169,6 +1209,23 @@ def _squeeze_trampoline(
     tensors = (tensor,)
     for override in d.find_overrides(tensor):
         result = override(tensor, dim)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(tensors)
+
+
+@overridable
+def topk(tensor, k: int, dim: int) -> AnyTensor:
+    """See torch.topk"""
+    ...
+
+
+@topk.trampoline
+def _topk_trampoline(d: SignatureDispatcher, tensor, k: int, dim: int) -> AnyTensor:
+    tensors = (tensor,)
+    for override in d.find_overrides(tensor):
+        result = override(tensor, k=k, dim=dim)
         if result is not NotImplemented:
             return override, result
     else:
