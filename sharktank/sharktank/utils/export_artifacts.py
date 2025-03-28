@@ -335,9 +335,6 @@ class ExportArtifacts:
         cmd = subprocess.list2cmdline(benchmark_args)
         logger.info(f" Launching run command:\n" f"cd {cwd} && {cmd}")
         proc = subprocess.run(cmd, shell=True, stdout=sys.stdout, cwd=cwd)
-        import pdb
-
-        pdb.set_trace()
         print("PROC: ", proc)
         print("proc.stdout: ", proc.stdout)
         print("proc.stderr: ", proc.stderr)
