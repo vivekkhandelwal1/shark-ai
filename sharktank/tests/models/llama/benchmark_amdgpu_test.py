@@ -49,10 +49,15 @@ class BaseBenchmarkTest(unittest.TestCase):
 
     def setUp(self):
         self.compile_args = [
-            "--iree-opt-level=O3",
+            "--iree-dispatch-creation-enable-aggressive-fusion=true",
+            "--iree-global-opt-propagate-transposes=true",
+            "--iree-opt-aggressively-propagate-transposes=true",
+            "--iree-opt-data-tiling=false",
+            "--iree-preprocessing-pass-pipeline='builtin.module(util.func(iree-preprocessing-generalize-linalg-matmul-experimental))'",
             "--iree-stream-resource-memory-model=discrete",
             "--iree-hal-indirect-command-buffers=true",
             "--iree-hal-memoization=true",
+            "--iree-opt-strip-assertions",
         ]
 
     def save_benchmarks(
