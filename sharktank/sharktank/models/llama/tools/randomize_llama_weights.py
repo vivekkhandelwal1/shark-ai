@@ -15,6 +15,16 @@ import torch
 from ....types.tensors import *
 from ....utils import cli
 
+"""Generates a randomized irpa file using a normal distribution given
+a llama irpa file in order to maintain the same mean and standard
+deviation as the original weights.
+
+Usage:
+  $ python -m sharktank.models.llama.tools.randomize_llama_weights \
+    --irpa-file=llama3.1_8b_f16.irpa \
+    --output=random_llama3.1_8b_f16.irpa
+"""
+
 parser = cli.create_parser()
 cli.add_input_dataset_options(parser)
 cli.add_model_options(parser)

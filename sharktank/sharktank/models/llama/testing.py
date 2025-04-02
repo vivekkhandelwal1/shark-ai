@@ -172,9 +172,6 @@ def make_random_theta_from_dataset(dataset: Dataset) -> Theta:
         shape = value.shape
         min_val = torch.min(value.flatten())
         max_val = torch.max(value.flatten())
-        import pdb
-
-        pdb.set_trace()
         random_tensor = torch.normal(
             mean=value.as_torch().mean(),
             std=value.as_torch().std(),
