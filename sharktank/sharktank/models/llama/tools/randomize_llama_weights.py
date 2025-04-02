@@ -29,7 +29,7 @@ parser = cli.create_parser()
 cli.add_input_dataset_options(parser)
 cli.add_model_options(parser)
 parser.add_argument("-s", "--seed", default=12345)
-parser.add_argument("-o", "--output", default="/tmp/toy_llama.irpa")
+parser.add_argument("-o", "--output", default="/tmp/random_llama.irpa")
 args = cli.parse(parser)
 
 
