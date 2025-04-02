@@ -8,6 +8,7 @@ from typing import List
 
 import torch
 
+from ...types import Dataset
 from ...types.tensors import *
 from ...types.theta import Theta
 from typing import Optional
@@ -162,4 +163,23 @@ def make_random_llama_theta(
         data=make_rand_torch((1, config.hp.embedding_length), dtype=dtype),
     )
 
+    return Theta(res)
+
+
+def make_random_theta_from_dataset(dataset: Dataset) -> Theta:
+    res = {}
+    for key, value in dataset.root_theta.flatten().items():
+        shape = value.shape
+        min_val = torch.min(value.flatten())
+        max_val = torch.max(value.flatten())
+        import pdb
+
+        pdb.set_trace()
+        random_tensor = torch.normal(
+            mean=value.as_torch().mean(),
+            std=value.as_torch().std(),
+            size=shape,
+            dtype=value.dtype,
+        )
+        res[key] = DefaultPrimitiveTensor(name=key, data=random_tensor)
     return Theta(res)
