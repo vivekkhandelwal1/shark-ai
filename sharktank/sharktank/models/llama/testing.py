@@ -170,11 +170,15 @@ def make_random_theta_from_dataset(dataset: Dataset) -> Theta:
     res = {}
     for key, value in dataset.root_theta.flatten().items():
         shape = value.shape
+        dtype = value.dtype
+        torch_value = value.as_torch()
+        # Use a normal distribution to randomize the weights, while
+        # maintaining the same mean and standard deviation
         random_tensor = torch.normal(
-            mean=value.as_torch().mean(),
-            std=value.as_torch().std(),
+            mean=torch_value.mean(),
+            std=torch_value.std(),
             size=shape,
-            dtype=value.dtype,
+            dtype=dtype,
         )
         res[key] = DefaultPrimitiveTensor(name=key, data=random_tensor)
     return Theta(res)
