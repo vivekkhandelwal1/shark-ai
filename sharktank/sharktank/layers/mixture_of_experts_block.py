@@ -48,21 +48,24 @@ class MoeBlock(ThetaLayer):
         self.score_experts = score_experts
         self.normalize_experts = normalize_experts
         self.add_residual = add_residual
-
-        # Add router gate
-        self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
-
+        self.route_scale = route_scale
+        self.ffn_gate_inp = torch.nn.Identity()
         self.ffn_norm = torch.nn.Identity()
         self.layer_output_norm = torch.nn.Identity()
         self.shared_experts = None
-        self.route_scale = route_scale
+
+        # Add router gate
+        if theta.optional_tensor("ffn_gate_inp") is not None:
+            self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
         # Add FFN norm
-        if "ffn_norm" in theta:
+        if theta.optional_tensor("ffn_norm") is not None:
             self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
 
-        if "shared_experts" in theta:
-            self.shared_experts = FFN(theta("shared_experts"))
+        if theta.optional_tensor("ffn_gate_shexp") is not None:
+            self.shared_experts = FFN(
+                theta=theta, activation_fn=moe_activation, rms_epsilon=rms_epsilon
+            )
 
         # Add optional FFN output norm layer
         if theta.optional_tensor("layer_output_norm") is not None:
@@ -70,8 +73,7 @@ class MoeBlock(ThetaLayer):
                 theta("layer_output_norm"), epsilon=rms_epsilon
             )
 
-        # Add expert_count x FFN
-        self.experts = PreGatherFFNMOE(theta, activation=moe_activation)
+        self.routed_experts = PreGatherFFNMOE(theta, activation=moe_activation)
 
     def forward(
         self,
@@ -99,7 +101,7 @@ class MoeBlock(ThetaLayer):
         if self.route_scale is not None:
             expert_gate = expert_gate * self.route_scale
 
-        moe_output = self.experts(ffn_input, top_k_experts, expert_gate)
+        moe_output = self.routed_experts(ffn_input, top_k_experts, expert_gate)
 
         if self.shared_experts:
             moe_output = moe_output + self.shared_experts(ffn_input)
