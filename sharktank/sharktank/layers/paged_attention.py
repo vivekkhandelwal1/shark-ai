@@ -314,18 +314,10 @@ class PagedAttention:
         )
 
         for index, partition in enumerate(cache_partitions):
-            print("partition", partition.shape)
             part_block_view = partition.unflatten(
                 1, (block_seq_len, self.block_seq_stride)
             )
-            print(
-                "part_block_view 1",
-                part_block_view.shape,
-                block_seq_len,
-                self.block_seq_stride,
-            )
             part_block_view = part_block_view.flatten(0, 1)
-            print("part_block_view 2", part_block_view.shape)
 
             subblock_ids = (
                 (base_subblock_ids + index) if index > 0 else base_subblock_ids
@@ -338,12 +330,6 @@ class PagedAttention:
                 part_block_as_int8 = part_block.view(dtype=torch.int8)
                 subblock_table_as_int8.index_copy_(0, subblock_ids, part_block_as_int8)
             else:
-                print(
-                    type(part_block),
-                    part_block.shape,
-                    subblock_table.shape,
-                    subblock_ids,
-                )
                 subblock_table.index_copy_(0, subblock_ids, part_block)
 
     def repeat_kv(self, x: torch.Tensor, n_rep: int) -> torch.Tensor:
@@ -356,8 +342,8 @@ class PagedAttention:
         gqa_n_rep = head_count_attn // self.head_count_kv
         assert gqa_n_rep > 0
         if gqa_n_rep > 1:
-            k = self.repeat_kv(x=k, gqa_n_rep=gqa_n_rep)
-            v = self.repeat_kv(x=v, gqa_n_rep=gqa_n_rep)
+            k = self.repeat_kv(x=k, n_rep=gqa_n_rep)
+            v = self.repeat_kv(x=v, n_rep=gqa_n_rep)
         return k, v
 
     def attention(
@@ -450,7 +436,6 @@ class PagedAttention:
             if softcap is not None:
                 raise ValueError("softcap not supported yet")
 
-            print("here kernal torch")
             attn_output = ops.scaled_dot_product_attention(
                 q=q,  # [bs, ..., sl, dim]
                 k=k,  # [bs, ..., sl, dim]
@@ -459,13 +444,6 @@ class PagedAttention:
                 is_causal=mask is None,  # assumes causal masking when true
                 scale=None,  # defaults to 1/sqrt(dim)
             )
-
-        attn_output = attn_output.transpose(1, 2)
-
-        if self.attn_type == "mla":
-            attn_output = attn_output.flatten(2)
-        else:
-            attn_output = attn_output.flatten(2, 3)
 
         return attn_output
 
