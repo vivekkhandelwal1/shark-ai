@@ -137,7 +137,7 @@ def main():
             if llama_config.kv_cache_dtype is None
             else str(llama_config.kv_cache_dtype).split(".")[
                 -1
-            ]  # convert torch.float8_e4m3fnuz dtype into "float8_e4m3fnuz"
+            ]  # convert torch dtype into string representation (e.g. torch.bfloat16 -> "bfloat16")
         )
         return {
             "module_name": "module",
@@ -148,9 +148,6 @@ def main():
             "decode_batch_sizes": decode_bs,
             "transformer_block_count": hp.block_count,
             "logits_normalization": logits_normalization,
-            "attn_dtype": str(llama_config.kv_cache_dtype).split(".")[
-                -1
-            ],  # convert torch.bfloat16 dtype into "bfloat16"
             "attn_dtype": attn_dtype,
             "paged_kv_cache": {
                 "attention_head_count_kv": hp.attention_head_count_kv,
