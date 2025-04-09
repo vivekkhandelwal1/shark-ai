@@ -10,6 +10,8 @@ from typing import Union
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 
 from ...layers import *
 from ...types import *
@@ -76,11 +78,15 @@ class PagedDeepseekModelV1(BaseCausalLMModel):
                     head_count=hp.attention_head_count,
                     head_dim=hp.attn_head_dim,
                     head_count_kv=hp.attention_head_count_kv,
+                    v_head_dim=hp.v_head_dim,
                     rms_epsilon=hp.attention_layer_norm_rms_epsilon,
                     rope_dimension_count=hp.rope_dimension_count,
                     expert_used_count=hp.expert_used_count,
+                    expert_count=hp.expert_count,
+                    n_expert_groups=hp.n_expert_groups,
+                    n_limited_groups=hp.n_limited_groups,
+                    n_dense_layers=hp.n_dense_layers,
                     route_scale=hp.route_scale,
-                    score_func=hp.expert_score_func,
                     model_arch=hp.model_arch,
                 )
                 for n in range(hp.block_count)
@@ -182,11 +188,15 @@ class AttentionFFNBlock(ThetaLayer):
         head_count: int,
         head_dim: int,
         head_count_kv: int,
+        v_head_dim: int,
         rms_epsilon: float,
         rope_dimension_count: int,
         expert_used_count: int,
+        expert_count: int,
+        n_expert_groups: int,
+        n_limited_groups: int,
+        n_dense_layers: int,
         route_scale: Optional[float],
-        score_func: Optional[str],
         model_arch: str,
     ):
         super().__init__(theta)
@@ -199,6 +209,7 @@ class AttentionFFNBlock(ThetaLayer):
                 head_count=head_count,
                 head_dim=head_dim,
                 head_count_kv=head_count_kv,
+                v_head_dim=v_head_dim,
                 rms_epsilon=rms_epsilon,
                 rope_dimension_count=rope_dimension_count,
                 model_arch=model_arch,
@@ -206,32 +217,34 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         func_map = {
-            "sigmoid": (torch.nn.functional.sigmoid, True),
-            "softmax": (torch.nn.functional.softmax, False),
+            "llama": (F.softmax, False),
+            "grok": (F.softmax, False),
+            "deepseek2": (F.sigmoid, True),
         }
 
-        score_experts, normalize_experts = func_map["sigmoid"]
+        score_experts, normalize_experts = func_map[model_arch]
 
         # print('theta.keys', theta.keys)
 
-        if "ffn_gate" in theta:
-            print("ffn block_index:", block_index)
-            self.add_module("ffn", FFN(theta=theta, rms_epsilon=rms_epsilon))
-        else:
-            print("MOE block_index:", block_index)
+        if block_index >= n_dense_layers:
 
             self.add_module(
                 "ffn",
                 MoeBlock(
                     theta=theta,
                     rms_epsilon=rms_epsilon,
+                    expert_count=expert_count,
                     expert_used_count=expert_used_count,
+                    n_expert_groups=n_expert_groups,
+                    n_limited_groups=n_limited_groups,
                     add_residual=False,
                     route_scale=route_scale,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                 ),
             )
+        else:
+            self.add_module("ffn", FFN(theta=theta, rms_epsilon=rms_epsilon))
 
     def forward(
         self,
