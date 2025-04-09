@@ -8,6 +8,7 @@ from typing import Optional
 
 
 import torch
+import torch.nn.functional as F
 from ..types import *
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
@@ -36,9 +37,10 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_count_kv: int,
         rms_epsilon: float,
         model_arch: str,
+        attention_kernel: str = "decomposed",
+        v_head_dim: Optional[int] = None,
         rope_dimension_count: Optional[int] = None,
         attention_dtype: Optional[torch.dtype] = None,
-        attention_kernel: str = "decomposed",
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
@@ -59,6 +61,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         self.cache_quantizer = None
         self.probs_quantizer = None
         self.model_arch = model_arch
+        self.v_head_dim = v_head_dim
 
         self.attn_type_map = {
             "llama": "gqa",
@@ -179,7 +182,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 )
 
             xk = ops.cat((k_nope, k_rope), dim=-1)
-        else:
+
+        elif self.attn_type == "gqa":
             bs, batch_seq_len, _ = x.shape
 
             xq = self.attn_q(x)
@@ -221,12 +225,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
         x = self.attn_norm(h)
 
-        print("cache_state", cache_state[0].shape)
         xq, xk, xv = self.pre_process_attention(
             x, start_index, embedding, embedding_batch_mask
         )
-
-        print("qkv", xq.shape, xk.shape, xv.shape)
 
         # Full sequence length.
         kv_seq_len = seq_block_ids.shape[1] * self.paged_attention.block_seq_stride
@@ -238,6 +239,10 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 # Probably want to add support for using quantized tensors more directly
                 xk = self.cache_quantizer.quantize(xk).unpack().qs
                 xv = self.cache_quantizer.quantize(xv).unpack().qs
+
+        # Pad final dim of v to match with kv cache
+        if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
+            xv = F.pad(xv, [0, self.head_dim - self.v_head_dim])
 
         if start_positions is None:
             attn_output = self.paged_attention.forward_prefill(
@@ -274,6 +279,16 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 scale=self.attention_scale,
                 softcap=self.softcap,
             )
+        # Drop padded part of attn_output
+        if self.attn_type == "mla" and self.head_dim != self.v_head_dim:
+            attn_output = attn_output[:, :, :, : self.v_head_dim]
+
+        attn_output = attn_output.transpose(1, 2)
+
+        if self.attn_type == "mla":
+            attn_output = attn_output.flatten(2)
+        else:
+            attn_output = attn_output.flatten(2, 3)
 
         # Project.
         attn_output = self.attn_output(attn_output)
