@@ -137,7 +137,7 @@ def main():
             if llama_config.kv_cache_dtype is None
             else str(llama_config.kv_cache_dtype).split(".")[
                 -1
-            ]  # convert torch dtype into string representation (e.g. torch.bfloat16 -> "bfloat16")
+            ]  # convert torch dtype into string representation (e.g. torch.bfloat16 into "bfloat16")
         )
         return {
             "module_name": "module",
