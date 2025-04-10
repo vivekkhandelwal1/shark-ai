@@ -11,7 +11,15 @@ from typing import Optional, Sequence, Union, List, Tuple
 import torch
 import numbers
 from torch import Tensor, dtype
-from ..types import AnyTensor, ShardedTensor, Theta, sharding, InferenceTensor
+
+from ..types import (
+    AnyTensor,
+    ShardedTensor,
+    Theta,
+    sharding,
+    InferenceTensor,
+    PrimitiveTensor,
+)
 from numbers import Number
 import math
 
@@ -262,16 +270,12 @@ def _embedding_lookup_trampoline(
 
 @overridable
 def equal(a: AnyTensor, b: AnyTensor) -> bool:
-    """Compares 2 tensors for equality, such that if one is substituted with the other
-    in sharktank polymorphic calls, the results will be essentially the same.
-    Meaning, they would also compare equal.
+    """Compares 2 tensors for equality, such that they elements and dtype are equal.
 
     Overrides are matched first against both tensor types and failing that,
     then on just the first.
     Therefore, each first-only argument override must internally decide whether
     it can handle an equality check with an arbitrary b tensor.
-
-    torch.Tensor and DefaultPrimitiveTensor with the same contents would compare equal.
     """
     ...
 
@@ -815,7 +819,9 @@ def _repeat_trampoline(
 
 
 @overridable
-def replicate(input: AnyTensor, count: int) -> ShardedTensor:
+def replicate(
+    input: AnyTensor, count: int, devices: tuple[int, ...] | None
+) -> ShardedTensor:
     """Replicate across devices.
 
     Possibly reshards if required."""
@@ -824,11 +830,19 @@ def replicate(input: AnyTensor, count: int) -> ShardedTensor:
 
 @replicate.trampoline
 def _replicate_trampoline(
-    d: SignatureDispatcher, input: AnyTensor, count: int
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    count: int,
+    devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
+    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
+        devices = devices if devices is not None else tuple(range(count))
+    else:
+        assert devices is None
+
     for override in d.find_overrides(tensors):
-        result = override(input, count=count)
+        result = override(input, count=count, devices=devices)
         if result is not NotImplemented:
             return override, result
     else:
@@ -860,7 +874,10 @@ def _scaled_dot_product_attention(
 ):
     tensors = (q, k, v, a)
     for override in d.find_overrides(tensors):
-        result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+        if is_causal is not None:
+            result = override(q, k, v, a, is_causal=is_causal, scale=scale)
+        else:
+            result = override(q, k, v, a, scale=scale)
         if result is not NotImplemented:
             return override, result
     else:
@@ -913,7 +930,9 @@ def _reshard_trampoline(d: SignatureDispatcher, input, spec) -> ShardedTensor:
 
 
 @overridable
-def reshard_split(input: AnyTensor, *, dim: int, count: int) -> ShardedTensor:
+def reshard_split(
+    input: AnyTensor, *, dim: int, count: int, devices: tuple[int, ...] | None
+) -> ShardedTensor:
     """Split `input` along `dim`.
     This does not mean that a sharded tensor is further sharded.
     It is not composition of sharding operations.
@@ -923,11 +942,20 @@ def reshard_split(input: AnyTensor, *, dim: int, count: int) -> ShardedTensor:
 
 @reshard_split.trampoline
 def _reshard_split_trampoline(
-    d: SignatureDispatcher, input: AnyTensor, dim: int, count: int
+    d: SignatureDispatcher,
+    input: AnyTensor,
+    dim: int,
+    count: int,
+    devices: tuple[int, ...] | None = None,
 ) -> ShardedTensor:
     tensors = (input,)
+    if isinstance(input, (torch.Tensor, PrimitiveTensor)):
+        devices = devices if devices is not None else tuple(range(count))
+    else:
+        assert devices is None
+
     for override in d.find_overrides(tensors):
-        result = override(input, dim=dim, count=count)
+        result = override(input, dim=dim, count=count, devices=devices)
         if result is not NotImplemented:
             return override, result
     else:

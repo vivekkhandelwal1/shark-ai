@@ -19,6 +19,7 @@ from sharktank.layers import BaseLayer
 from sharktank.utils import debugging
 from sharktank.utils.testing import TempDirTestBase
 from sharktank.utils.iree import (
+    with_iree_device_context,
     get_iree_devices,
     load_iree_module,
     run_iree_module_function,
@@ -363,30 +364,39 @@ class TestTraceTensors(TempDirTestBase):
         iree.compiler.compile_file(
             str(mlir_path),
             output_file=str(iree_module_path),
-            extra_args=["--iree-hal-target-device=local"],
+            extra_args=[
+                "--iree-hal-local-target-device-backends=llvm-cpu",
+                "--iree-hal-target-device=local",
+            ],
         )
 
         iree_devices = get_iree_devices(driver="local-task", device_count=1)
-        iree_buffere_view_trace_callback = make_hal_buffer_view_trace_default_callback(
-            iree_devices[0]
-        )
-        debug_sink = iree.runtime.HalModuleDebugSink(iree_buffere_view_trace_callback)
-        iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
-            module_path=iree_module_path,
-            devices=iree_devices,
-            debug_sink=debug_sink,
-        )
-        iree_args = prepare_iree_module_function_args(
-            args=[tensor],
-            devices=iree_devices,
-        )
-        run_iree_module_function(
-            module=iree_module,
-            vm_context=iree_vm_context,
-            args=iree_args,
-            device=iree_devices[0],
-            function_name=f"forward",
-        )
+
+        def run_iree_module(iree_devices: list[iree.runtime.HalDevice]):
+            iree_buffere_view_trace_callback = (
+                make_hal_buffer_view_trace_default_callback(iree_devices[0])
+            )
+            debug_sink = iree.runtime.HalModuleDebugSink(
+                iree_buffere_view_trace_callback
+            )
+            iree_module, iree_vm_context, iree_vm_instance = load_iree_module(
+                module_path=iree_module_path,
+                devices=iree_devices,
+                debug_sink=debug_sink,
+            )
+            iree_args = prepare_iree_module_function_args(
+                args=[tensor],
+                devices=iree_devices,
+            )
+            run_iree_module_function(
+                module=iree_module,
+                vm_context=iree_vm_context,
+                args=iree_args,
+                device=iree_devices[0],
+                function_name=f"forward",
+            )
+
+        with_iree_device_context(run_iree_module, iree_devices)
 
         trace_filepath = debugging.flags.trace_path / f"{trace_key}.safetensors"
         with safetensors.safe_open(trace_filepath, framework="pt", device="cpu") as f:

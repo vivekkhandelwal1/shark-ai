@@ -14,11 +14,19 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from dataclasses import asdict, dataclass, field
+from typing import TYPE_CHECKING, ClassVar
+from dataclasses import asdict, dataclass, field, fields
 from typing import Any, Optional
 import torch
+from transformers import T5Config as T5ConfigHf
+from .config import ModelConfig
+from ...utils import parse_version
+from os import PathLike
 
 from ...types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+
+if TYPE_CHECKING:
+    import transformers
 
 __all__ = ["ClipTextConfig", "LlamaHParams", "LlamaModelConfig", "T5Config"]
 
@@ -49,9 +57,12 @@ class LlamaHParams:
     kv_latent_dim: Optional[int] = None
     v_head_dim: Optional[int] = None
 
-    # Expert cnofigs - Deep seek Specific
+    # Expert configs - Deep seek Specific
     expert_score_func: Optional[str] = None
     route_scale: Optional[float] = None
+
+    # Grok configurations
+    attention_softcap: Optional[float] = None
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
@@ -64,6 +75,8 @@ class LlamaHParams:
         rope_dimension_count = _optional_int_prop(
             p, f"{name_prefix}.rope.dimension_count", default_rope_dimension_count
         )
+
+        attention_softcap = 30.0 if name_prefix == "grok" else None
 
         return LlamaHParams(
             model_arch=name_prefix,
@@ -89,6 +102,7 @@ class LlamaHParams:
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
+            attention_softcap=attention_softcap,
         )
 
     def to_gguf_props(self) -> dict[str, Any]:
@@ -157,6 +171,9 @@ class LlamaModelConfig:
 
     # Either "paged" or "direct".
     kv_cache_type: str = "paged"
+
+    # If None will use attention_dtype.
+    kv_cache_dtype: Optional[torch.dtype] = None
 
     # The device on which to place intermediate state.
     device: Optional[torch.device] = None
@@ -231,56 +248,50 @@ class T5Config:
             self.dense_act_fn = "gelu_new"
 
     @staticmethod
-    def from_gguf_properties(properties: dict[str, Any], **kwargs):
-        assert properties["general.architecture"] == "t5"
-        assert (
-            properties["t5.attention.layer_norm_epsilon"]
-            == properties["t5.attention.layer_norm_rms_epsilon"]
-        )
-
-        all_kwargs = {"vocab_size": None, "feed_forward_proj": None}
-
-        gguf_to_config_names_map = {
-            "t5.context_length": ["context_length"],
-            "t5.embedding_length": ["d_model"],
-            "t5.feed_forward_length": ["d_ff"],
-            "t5.block_count": ["num_layers", "num_decoder_layers"],
-            "t5.attention.head_count": ["num_heads"],
-            "t5.attention.key_length": ["d_kv"],
-            "t5.attention.layer_norm_epsilon": ["layer_norm_epsilon"],
-            "t5.attention.relative_buckets_count": ["relative_attention_num_buckets"],
-            "tokenizer.ggml.eos_token_id": ["eos_token_id"],
-            "tokenizer.ggml.padding_token_id": ["pad_token_id"],
-        }
-        all_kwargs.update(
-            {
-                config_name: properties[gguf_name]
-                for gguf_name, config_names in gguf_to_config_names_map.items()
-                for config_name in config_names
-            }
-        )
-
-        gguf_to_optional_config_names_map = {
-            "t5.decoder_start_token_id": ["decoder_start_token_id"],
-        }
-        all_kwargs.update(
-            {
-                config_name: properties[gguf_name]
-                for gguf_name, config_names in gguf_to_optional_config_names_map.items()
-                for config_name in config_names
-                if gguf_name in properties
-            }
-        )
-
-        if "tokenizer.ggml.tokens" in properties:
-            all_kwargs["vocab_size"] = len(properties["tokenizer.ggml.tokens"])
+    def from_hugging_face_config(
+        config: T5ConfigHf, tokenizer_config: dict[str, Any], **kwargs
+    ) -> "T5Config":
+        all_kwargs = {}
+        for filed in fields(T5Config):
+            if hasattr(config, filed.name):
+                all_kwargs[filed.name] = getattr(config, filed.name)
+        all_kwargs["context_length"] = tokenizer_config["model_max_length"]
+        del all_kwargs["is_gated_act"]
+        del all_kwargs["dense_act_fn"]
         all_kwargs.update(kwargs)
-
         return T5Config(**all_kwargs)
 
+    def to_hugging_face_config(self) -> T5ConfigHf:
+        kwargs = asdict(self)
+        del kwargs["activation_dtype"]
+        return T5ConfigHf(dropout_rate=0, **kwargs)
 
-@dataclass
-class ClipTextConfig:
+    @staticmethod
+    def from_properties(properties: dict[str, Any]) -> "T5Config":
+        kwargs = dict(properties)
+        if "SHARK_DATASET_VERSION" in kwargs:
+            kwargs.pop("SHARK_DATASET_VERSION")
+        if "activation_dtype" in kwargs and kwargs["activation_dtype"] is not None:
+            kwargs["activation_dtype"] = serialized_name_to_dtype(
+                kwargs["activation_dtype"]
+            )
+        if "is_gated_act" in kwargs:
+            kwargs.pop("is_gated_act")
+        if "dense_act_fn" in kwargs:
+            kwargs.pop("dense_act_fn")
+
+        return T5Config(**kwargs)
+
+    def to_properties(self) -> dict[str, Any]:
+        res = asdict(self)
+        if self.activation_dtype is not None:
+            res["activation_dtype"] = dtype_to_serialized_name(self.activation_dtype)
+        return res
+
+
+@dataclass(kw_only=True)
+class ClipTextConfig(ModelConfig):
+    current_clip_config_version: ClassVar[str] = "0.1.0"
     vocab_size: int = 49408
     hidden_size: int = 512
     intermediate_size: int = 2048
@@ -300,35 +311,54 @@ class ClipTextConfig:
     use_return_dict: bool = True
     dtype: torch.dtype = torch.float32
 
+    def __post_init__(self):
+        from ...models.clip import ClipTextModel
+
+        self.model_type = ClipTextModel
+        super().__post_init__()
+
+        self.layer_norm_eps = float(self.layer_norm_eps)
+        if isinstance(self.dtype, str):
+            self.dtype = serialized_name_to_dtype(self.dtype)
+
     @staticmethod
     def from_hugging_face_clip_text_model_config(
         config: "transformers.CLIPTextConfig",
     ) -> "ClipTextConfig":
+        from ...models.clip import ClipTextModel
+        from ..base import get_model_type_id
+
         return ClipTextConfig(
-            vocab_size=config.vocab_size,
-            hidden_size=config.hidden_size,
-            intermediate_size=config.intermediate_size,
-            projection_dim=config.projection_dim,
-            num_hidden_layers=config.num_hidden_layers,
-            num_attention_heads=config.num_attention_heads,
-            max_position_embeddings=config.max_position_embeddings,
-            hidden_act=config.hidden_act,
-            layer_norm_eps=config.layer_norm_eps,
-            pad_token_id=config.pad_token_id,
-            bos_token_id=config.bos_token_id,
-            eos_token_id=config.eos_token_id,
-            output_attentions=config.output_attentions,
-            output_hidden_states=config.output_hidden_states,
-            use_return_dict=config.use_return_dict,
-            dtype=config.torch_dtype or torch.float32,
+            model_type=get_model_type_id(ClipTextModel),
+            **ClipTextConfig.translate_hugging_face_config_dict_into_init_kwargs(
+                config.to_dict()
+            ),
         )
 
+    @classmethod
+    def translate_hugging_face_config_dict_into_init_kwargs(
+        cls, properties: dict[str, Any], /
+    ) -> dict[str, Any]:
+        architectures: list[str] = properties["architectures"]
+        if architectures is not None and architectures.count("CLIPModel") < 1:
+            raise ValueError(
+                f"Could not translate Hugging Face Clip text model config, unknown architectures {architectures}"
+            )
+        import transformers
+
+        hf_config = transformers.CLIPTextConfig(**properties)
+        res = {
+            name: getattr(hf_config, hf_name)
+            for name, hf_name in cls.get_config_name_to_hugging_face_map().items()
+        }
+        res["dtype"] = res["dtype"] or torch.float32
+        return res
+
     def to_hugging_face_clip_text_model_config(self) -> "transformers.CLIPTextConfig":
-        kwargs = self.to_properties()
-        kwargs["torch_dtype"] = kwargs["dtype"]
-        del kwargs["dtype"]
-        kwargs["return_dict"] = kwargs["use_return_dict"]
-        del kwargs["use_return_dict"]
+        kwargs = {
+            hf_name: getattr(self, name)
+            for name, hf_name in self.get_config_name_to_hugging_face_map().items()
+        }
         from transformers import CLIPTextConfig
 
         return CLIPTextConfig(**kwargs)
@@ -336,14 +366,57 @@ class ClipTextConfig:
     @staticmethod
     def from_properties(properties: dict[str, Any]) -> "ClipTextConfig":
         kwargs = dict(properties)
-        kwargs.pop("SHARK_DATASET_VERSION")
-        if "dtype" in kwargs and kwargs["dtype"] is not None:
-            kwargs["dtype"] = serialized_name_to_dtype(kwargs["dtype"])
+        if "SHARK_DATASET_VERSION" in kwargs:
+            kwargs.pop("SHARK_DATASET_VERSION")
 
         return ClipTextConfig(**kwargs)
 
-    def to_properties(self) -> dict[str, Any]:
-        res = asdict(self)
-        if self.dtype is not None:
+    def asdict_for_saving(
+        self, config_path: PathLike | None = None, /
+    ) -> dict[str, Any]:
+        res = super().asdict_for_saving(config_path)
+        if res["dtype"] == torch.float32:
+            del res["dtype"]
+        if "dtype" in res:
             res["dtype"] = dtype_to_serialized_name(self.dtype)
+        res["clip_config_version"] = self.current_clip_config_version
         return res
+
+    @classmethod
+    def get_config_name_to_hugging_face_map(cls) -> dict[str, str]:
+        return {
+            "vocab_size": "vocab_size",
+            "hidden_size": "hidden_size",
+            "intermediate_size": "intermediate_size",
+            "projection_dim": "projection_dim",
+            "num_hidden_layers": "num_hidden_layers",
+            "num_attention_heads": "num_attention_heads",
+            "max_position_embeddings": "max_position_embeddings",
+            "hidden_act": "hidden_act",
+            "layer_norm_eps": "layer_norm_eps",
+            "pad_token_id": "pad_token_id",
+            "bos_token_id": "bos_token_id",
+            "eos_token_id": "eos_token_id",
+            "output_attentions": "output_attentions",
+            "output_hidden_states": "output_hidden_states",
+            "use_return_dict": "return_dict",
+            "dtype": "torch_dtype",
+        }
+
+    @classmethod
+    def parse_for_init_kwargs(cls, **config_dict) -> dict[str, Any]:
+        config_dict = super().parse_for_init_kwargs(**config_dict)
+        cls._check_clip_config_version(config_dict)
+        config_dict.pop("clip_config_version")
+        return config_dict
+
+    @classmethod
+    def _check_clip_config_version(cls, config_dict: dict[str, Any], /):
+        version = config_dict.get("clip_config_version")
+        if version is None:
+            raise ValueError("Missing CLIP config version.")
+        if parse_version(version) != parse_version(cls.current_clip_config_version):
+            raise ValueError(
+                f"Could not load config with a CLIP config version {version},"
+                f"expected version is {parse_version(cls.current_clip_config_version)}"
+            )

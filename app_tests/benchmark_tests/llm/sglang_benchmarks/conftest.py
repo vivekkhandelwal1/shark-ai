@@ -33,7 +33,7 @@ MODEL_DIR_CACHE = {}
 # we can replace this with an import after #890 merges
 TEST_MODELS = {
     "llama3.1_8b": ModelConfig(
-        source=ModelSource.HUGGINGFACE,
+        source=ModelSource.HUGGINGFACE_FROM_GGUF,
         repo_id="SanctumAI/Meta-Llama-3.1-8B-Instruct-GGUF",
         model_file="meta-llama-3.1-8b-instruct.f16.gguf",
         tokenizer_id="NousResearch/Meta-Llama-3.1-8B",
@@ -46,7 +46,7 @@ TEST_MODELS = {
 @pytest.fixture(scope="module")
 def model_artifacts(tmp_path_factory, request):
     """Prepares model artifacts in a cached directory."""
-    model_config = TEST_MODELS[request.param]
+    model_config = request.param
     cache_key = hashlib.md5(str(model_config).encode()).hexdigest()
 
     cache_dir = tmp_path_factory.mktemp("model_cache")
@@ -70,8 +70,7 @@ def model_artifacts(tmp_path_factory, request):
 @pytest.fixture(scope="module")
 def server(model_artifacts, request):
     """Starts and manages the test server."""
-    model_id = request.param["model"]
-    model_config = TEST_MODELS[model_id]
+    model_config = model_artifacts.model_config
 
     server_config = ServerConfig(
         artifacts=model_artifacts,

@@ -103,7 +103,7 @@ Dataset(
         ),
         RemoteFile(
             "tokenizer_config.json",
-            "NousResearch/Meta-Llama-3-8B",
+            "NousResearch/Meta-Llama-3-8B-Instruct",
             "tokenizer_config.json",
             extra_filenames=["tokenizer.json"],
         ),
@@ -373,6 +373,22 @@ Dataset(
     ),
 )
 
+Dataset(
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    (
+        RemoteFile(
+            "config",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "unet/config.json",
+        ),
+        RemoteFile(
+            "parameters",
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            "unet/diffusion_pytorch_model.fp16.safetensors",
+        ),
+    ),
+)
+
 # The Flux transformer is in 2 formats.
 # This is used in diffusers.FluxTransformer2DModel
 Dataset(
@@ -433,6 +449,23 @@ Dataset(
             "flux1-dev.safetensors",
         ),
     ),
+)
+
+# tiny llama2-25m model for testing; has tokenizer
+Dataset(
+    "Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+    files=[
+        RemoteFile(
+            file_id="model.safetensors",
+            filename="model.safetensors",
+            repo_id="Mxode/TinyStories-LLaMA2-25M-256h-4l-GQA",
+            extra_filenames=(
+                "config.json",
+                "tokenizer.json",
+                "tokenizer_config.json",
+            ),
+        ),
+    ],
 )
 
 

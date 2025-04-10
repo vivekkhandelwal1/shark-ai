@@ -19,6 +19,7 @@ from sharktank.models.punet.layers import ResnetBlock2D
 from sharktank.models.punet.sharding import ResnetBlock2DSplitOutputChannelsSharding
 from sharktank import ops
 from sharktank.types import *
+from sharktank.utils.iree import with_iree_device_context
 import iree.runtime
 from typing import List, Optional
 import os
@@ -31,6 +32,8 @@ def get_compiler_args(target_device_kind: str, shard_count: int) -> List[str]:
         f"--iree-hal-target-device={target_device_kind}[{i}]"
         for i in range(shard_count)
     ]
+    if target_device_kind == "local":
+        result.append("--iree-hal-local-target-device-backends=llvm-cpu")
     return result
 
 
@@ -38,7 +41,7 @@ def compile_iree_module(
     export_output: aot.ExportOutput, module_path: str, shard_count: int
 ):
     export_output.session.set_flags(
-        *get_compiler_args(target_device_kind="llvm-cpu", shard_count=shard_count)
+        *get_compiler_args(target_device_kind="local", shard_count=shard_count)
     )
     export_output.compile(save_to=module_path, target_backends=None)
 
@@ -60,54 +63,61 @@ def run_iree_module(
     devices = [
         hal_driver.create_device(available_devices[0]) for _ in range(shard_count)
     ]
-    hal_module = iree.runtime.create_hal_module(instance=vm_instance, devices=devices)
-    params_path = Path(parameters_path)
-    # TODO: make IREE able to load the parameters from the top parameter file
-    # without having to specify the parameter file for each shard separately.
-    parameter_index = iree.runtime.ParameterIndex()
-    for i in range(shard_count):
-        parameter_index.load(
-            file_path=str(
-                Path(params_path).with_suffix(f".rank{i}{params_path.suffix}")
+
+    def run_iree_module(devices: list[iree.runtime.HalDevice]):
+        hal_module = iree.runtime.create_hal_module(
+            instance=vm_instance, devices=devices
+        )
+        params_path = Path(parameters_path)
+        # TODO: make IREE able to load the parameters from the top parameter file
+        # without having to specify the parameter file for each shard separately.
+        parameter_index = iree.runtime.ParameterIndex()
+        for i in range(shard_count):
+            parameter_index.load(
+                file_path=str(
+                    Path(params_path).with_suffix(f".rank{i}{params_path.suffix}")
+                )
             )
+        parameter_provider = parameter_index.create_provider(scope="model")
+        parameters_module = iree.runtime.create_io_parameters_module(
+            vm_instance, parameter_provider
         )
-    parameter_provider = parameter_index.create_provider(scope="model")
-    parameters_module = iree.runtime.create_io_parameters_module(
-        vm_instance, parameter_provider
-    )
 
-    vm_module = iree.runtime.VmModule.mmap(vm_instance, str(module_path))
+        vm_module = iree.runtime.VmModule.mmap(vm_instance, str(module_path))
 
-    # The context needs to be destroyed after the buffers, although
-    # it is not associate with them on the API level.
-    global vm_context
-    vm_context = iree.runtime.VmContext(
-        instance=vm_instance, modules=(hal_module, parameters_module, vm_module)
-    )
-    module_input_args = [
-        iree.runtime.asdevicearray(
-            devices[i], sharded_input_image.shards[i].as_torch().to("cpu").numpy()
+        # The context needs to be destroyed after the buffers, although
+        # it is not associate with them on the API level.
+        global vm_context
+        vm_context = iree.runtime.VmContext(
+            instance=vm_instance, modules=(hal_module, parameters_module, vm_module)
         )
-        for i in range(shard_count)
-    ]
-    module_input_args += [
-        iree.runtime.asdevicearray(
-            devices[i], sharded_input_time_emb.shards[i].as_torch().to("cpu").numpy()
-        )
-        for i in range(shard_count)
-    ]
+        module_input_args = [
+            iree.runtime.asdevicearray(
+                devices[i], sharded_input_image.shards[i].as_torch().to("cpu").numpy()
+            )
+            for i in range(shard_count)
+        ]
+        module_input_args += [
+            iree.runtime.asdevicearray(
+                devices[i],
+                sharded_input_time_emb.shards[i].as_torch().to("cpu").numpy(),
+            )
+            for i in range(shard_count)
+        ]
 
-    vm_function = vm_module.lookup_function("main")
-    invoker = iree.runtime.FunctionInvoker(
-        vm_context=vm_context,
-        # TODO: rework iree.runtime.FunctionInvoker interface for multiple devices.
-        # This works, but does not look right.
-        device=devices[0],
-        vm_function=vm_function,
-    )
-    results = invoker(*module_input_args)
-    shards = [torch.tensor(tensor.to_host()) for tensor in results]
-    return SplitPrimitiveTensor(ts=shards, shard_dim=1)
+        vm_function = vm_module.lookup_function("main")
+        invoker = iree.runtime.FunctionInvoker(
+            vm_context=vm_context,
+            # TODO: rework iree.runtime.FunctionInvoker interface for multiple devices.
+            # This works, but does not look right.
+            device=devices[0],
+            vm_function=vm_function,
+        )
+        results = invoker(*module_input_args)
+        shards = [torch.tensor(tensor.to_host()).clone() for tensor in results]
+        return SplitPrimitiveTensor(ts=shards, shard_dim=1)
+
+    return with_iree_device_context(run_iree_module, devices)
 
 
 def run_test_sharded_resnet_block_with_iree(

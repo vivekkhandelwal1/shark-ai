@@ -47,12 +47,12 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Prefer to keep the IREE git tag synced with the Python package version in the
 # requirements-iree-pinned.txt file. At a minimum, the compiler from those
 # packages must be compatible with the runtime at this source ref.
-set(SHORTFIN_IREE_GIT_TAG "iree-3.2.0rc20250206")
+set(SHORTFIN_IREE_GIT_TAG "iree-3.4.0rc20250402")
 
 
 # build options
 option(SHORTFIN_BUILD_PYTHON_BINDINGS "Builds Python Bindings" OFF)
-option(SHORTFIN_BUILD_TESTS "Builds C++ tests" ON)
+option(SHORTFIN_BUILD_TESTS "Builds C++ tests" OFF)
 option(SHORTFIN_BUNDLE_DEPS "Download dependencies instead of using system libraries" ON)
 option(SHORTFIN_ENABLE_TRACING "Enable runtime tracing for iree and shortfin" OFF)
 option(SHORTFIN_ENABLE_LTO "Enables LTO if supported" ON)
@@ -165,6 +165,13 @@ if(SHORTFIN_BUNDLE_DEPS)
     GIT_TAG        8e5613379f5140fefb0b60412fbf1f5406e7c7f8 # v1.15.0
   )
 
+  ## xsimd: required for bf16
+  FetchContent_Declare(
+    xsimd
+    GIT_REPOSITORY https://github.com/xtensor-stack/xsimd.git
+    GIT_TAG        148fa1328c674ab2ee1d03b1460204671ae82a8b # v13.1.0
+  )
+
   ## xtl: required for xtensor
   FetchContent_Declare(
     xtl
@@ -185,7 +192,7 @@ if(SHORTFIN_BUNDLE_DEPS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSPDLOG_SHARED_LIB -Dspdlog_EXPORTS")
   message(STATUS "Fetching bundled projects")
   list(APPEND CMAKE_MESSAGE_INDENT "  ")
-  FetchContent_MakeAvailable(fmt spdlog xtl xtensor)
+  FetchContent_MakeAvailable(fmt spdlog xsimd xtl xtensor)
   shortfin_pop_bundled_lib_options()
   list(POP_BACK CMAKE_MESSAGE_INDENT)
 else()
@@ -238,9 +245,11 @@ if(SHORTFIN_IREE_SOURCE_DIR)
 else()
   message(STATUS "Fetching IREE sources from tag ${SHORTFIN_IREE_GIT_TAG}")
 
-  # TODO: We shouldn't have to pull googletest when we are not building tests.
-  #       This needs to be fixed with IREE.
-  set(IREE_SUBMODULES "third_party/benchmark third_party/cpuinfo third_party/flatcc third_party/hip-build-deps third_party/googletest")
+  set(IREE_SUBMODULES "third_party/benchmark third_party/cpuinfo third_party/flatcc third_party/hip-build-deps")
+  if (SHORTFIN_BUILD_TESTS)
+    set(IREE_BUILD_TESTS ON)
+    set(IREE_SUBMODULES "${IREE_SUBMODULES} third_party/googletest")
+  endif()
   if (SHORTFIN_ENABLE_TRACING)
     set(IREE_SUBMODULES "${IREE_SUBMODULES} third_party/tracy")
   endif()

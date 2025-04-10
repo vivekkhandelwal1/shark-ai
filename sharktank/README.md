@@ -12,7 +12,7 @@ tooling.
 
 ## Project Status
 
-[![CI - sharktank perplexity](https://github.com/nod-ai/shark-ai/actions/workflows/ci_eval.yaml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci_eval.yaml)
+[![CI - sharktank nightly](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml/badge.svg?branch=main)](https://github.com/nod-ai/shark-ai/actions/workflows/ci-sharktank-nightly.yml)
 
 ## Examples
 
@@ -23,11 +23,12 @@ These are all under active development and should not yet be expected to work.
 
 ### Perform batched inference in PyTorch on a paged llama derived LLM:
 
+Note: Use `--device='cuda:0'` to run this inference on an AMD GPU.
+
 ```shell
 python -m sharktank.examples.paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_f16_gguf \
-  "Prompt 1" \
-  "Prompt 2" ...
+  --prompt "Prompt 1" "Prompt 2" ...
 ```
 
 ### Export an IREE compilable batched LLM for serving:
@@ -37,6 +38,17 @@ python -m sharktank.examples.export_paged_llm_v1 \
   --hf-dataset=open_llama_3b_v2_f16_gguf \
   --output-mlir=/tmp/open_llama_3b_v2_f16.mlir \
   --output-config=/tmp/open_llama_3b_v2_f16.json
+```
+
+### Generate sample input tokens for IREE inference/tracy:
+
+```shell
+python -m sharktank.examples.paged_llm_v1 \
+  --hf-dataset=open_llama_3b_v2_f16_gguf \
+  --prompt-seq-len=128 \
+  --bs=4 \
+  --dump-decode-steps=1 \
+  --dump-path='/tmp'
 ```
 
 ### Dump parsed information about a model from a gguf file:

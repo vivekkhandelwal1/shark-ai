@@ -4,34 +4,59 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import functools
 from os import PathLike
 import os
 from pathlib import Path
 import torch
 
-from ...export import export_static_model_mlir
-from ...tools.import_hf_dataset import import_hf_dataset
+from ...export import export_model_mlir
+from ...utils.hf import import_hf_dataset_from_hub
+from ...utils import chdir
+from ...utils.iree import trace_model_with_tracy
 from .flux import FluxModelV1, FluxParams
 from ...types import Dataset
+from ...layers import create_model, model_config_presets
 from ...utils.hf_datasets import get_dataset
+from sharktank.transforms.dataset import set_float_dtype
+from iree.turbine.aot import (
+    ExternalTensorTrait,
+)
 
 flux_transformer_default_batch_sizes = [1]
 
 
 def export_flux_transformer_model_mlir(
-    model: FluxModelV1,
+    model_or_parameters_path: FluxModelV1 | PathLike,
+    /,
     output_path: PathLike,
     batch_sizes: list[int] = flux_transformer_default_batch_sizes,
 ):
-    export_static_model_mlir(model, output_path=output_path, batch_sizes=batch_sizes)
+    if isinstance(model_or_parameters_path, (PathLike, str)):
+        dataset = Dataset.load(model_or_parameters_path)
+        model = FluxModelV1(
+            theta=dataset.root_theta,
+            params=FluxParams.from_hugging_face_properties(dataset.properties),
+        )
+    else:
+        model = model_or_parameters_path
+
+    for t in model.theta.flatten().values():
+        ExternalTensorTrait(external_name=t.name, external_scope="").set(t.as_torch())
+    export_model_mlir(model, output_path=output_path, batch_sizes=batch_sizes)
 
 
 def export_flux_transformer_iree_parameters(
-    model: FluxModelV1, parameters_output_path: PathLike
+    model: FluxModelV1, parameters_output_path: PathLike, dtype=None
 ):
     model.theta.rename_tensors_to_paths()
-    # TODO: export properties
-    dataset = Dataset(root_theta=model.theta, properties={})
+    dataset = Dataset(
+        root_theta=model.theta, properties=model.params.to_hugging_face_properties()
+    )
+    if dtype:
+        dataset.root_theta = dataset.root_theta.transform(
+            functools.partial(set_float_dtype, dtype=dtype)
+        )
     dataset.save(parameters_output_path)
 
 
@@ -42,25 +67,22 @@ def export_flux_transformer(
     batch_sizes: list[int] = flux_transformer_default_batch_sizes,
 ):
     export_flux_transformer_iree_parameters(model, parameters_output_path)
-
-    dataset = Dataset.load(parameters_output_path)
-    model_with_frozen_theta = FluxModelV1(theta=dataset.root_theta, params=model.params)
-    model_with_frozen_theta.theta = dataset.root_theta
     export_flux_transformer_model_mlir(
-        model_with_frozen_theta, output_path=mlir_output_path, batch_sizes=batch_sizes
+        model, output_path=mlir_output_path, batch_sizes=batch_sizes
     )
 
 
 def import_flux_transformer_dataset_from_hugging_face(
-    repo_id: str, parameters_output_path: PathLike
-):
-    hf_dataset = get_dataset(
-        repo_id,
-    ).download()
-
-    import_hf_dataset(
-        config_json_path=hf_dataset["config"][0],
-        param_paths=hf_dataset["parameters"],
+    repo_id: str,
+    revision: str | None = None,
+    subfolder: str | None = None,
+    parameters_output_path: PathLike | None = None,
+) -> Dataset | None:
+    return import_hf_dataset_from_hub(
+        repo_id=repo_id,
+        revision=revision,
+        subfolder=subfolder,
+        config_subpath="transformer/config.json",
         output_irpa_file=parameters_output_path,
     )
 
@@ -74,48 +96,37 @@ def export_flux_transformer_from_hugging_face(
     import_flux_transformer_dataset_from_hugging_face(
         repo_id=repo_id, parameters_output_path=parameters_output_path
     )
-
-    dataset = Dataset.load(parameters_output_path)
-    model = FluxModelV1(
-        theta=dataset.root_theta,
-        params=FluxParams.from_hugging_face_properties(dataset.properties),
-    )
     export_flux_transformer_model_mlir(
-        model, output_path=mlir_output_path, batch_sizes=batch_sizes
+        parameters_output_path, output_path=mlir_output_path, batch_sizes=batch_sizes
     )
 
 
 def export_flux_transformer_models(dir: Path):
-    from .testing import export_dev_random_single_layer
+    variants = ["dev", "schnell"]
+    iree_hal_target_device = "hip"
+    iree_hip_target = "gfx942"
+    output_img_height = 1024
+    output_img_width = 1024
+    build_types = ["debug", "release"]
+
+    preset_model_names = [
+        f"black-forest-labs--FLUX.1-{variant}-bf16-{output_img_height}x{output_img_width}-{iree_hal_target_device}-{iree_hip_target}-{build_type}"
+        for variant in variants
+        for build_type in build_types
+    ]
 
     base_dir = dir / "flux" / "transformer"
-    os.makedirs(base_dir)
-
-    file_name_base = "black-forest-labs--FLUX.1-dev--black-forest-labs-transformer-bf16"
-    mlir_path = base_dir / f"{file_name_base}.mlir"
-    parameters_output_path = base_dir / f"{file_name_base}.irpa"
-    export_flux_transformer_from_hugging_face(
-        "black-forest-labs/FLUX.1-dev/black-forest-labs-transformer",
-        mlir_output_path=mlir_path,
-        parameters_output_path=parameters_output_path,
-    )
-
-    file_name_base = (
-        "black-forest-labs--FLUX.1-schnell--black-forest-labs-transformer-bf16"
-    )
-    mlir_path = base_dir / f"{file_name_base}.mlir"
-    parameters_output_path = base_dir / f"{file_name_base}.irpa"
-    export_flux_transformer_from_hugging_face(
-        "black-forest-labs/FLUX.1-schnell/black-forest-labs-transformer",
-        mlir_output_path=mlir_path,
-        parameters_output_path=parameters_output_path,
-    )
-
-    file_name_base = "black-forest-labs--FLUX.1-dev--transformer-single-layer-b16"
-    mlir_path = base_dir / f"{file_name_base}.mlir"
-    parameters_output_path = base_dir / f"{file_name_base}.irpa"
-    export_dev_random_single_layer(
-        dtype=torch.bfloat16,
-        mlir_output_path=mlir_path,
-        parameters_output_path=parameters_output_path,
-    )
+    os.makedirs(base_dir, exist_ok=True)
+    for variant in variants:
+        for build_type in build_types:
+            model_name = f"black-forest-labs--FLUX.1-{variant}-bf16-{output_img_height}x{output_img_width}-{iree_hal_target_device}-{iree_hip_target}-{build_type}"
+            with chdir(base_dir):
+                model = create_model(model_config_presets[model_name])
+                model.export()
+                model.compile()
+                if build_type == "debug":
+                    trace_model_with_tracy(
+                        model.config,
+                        function="forward_bs1",
+                        output_trace_path=f"{model.config.iree_module_path}.tracy",
+                    )

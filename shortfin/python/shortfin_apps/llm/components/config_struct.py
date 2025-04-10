@@ -12,8 +12,6 @@ Classes:
 - ServerParams: for specifying config keys needed by `python -m shortfin_apps.llm.server`
 """
 
-import json
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -22,6 +20,9 @@ import dataclasses_json
 from dataclasses_json import dataclass_json, Undefined
 
 import shortfin.array as sfnp
+
+from .token_selection_strategy.config import DecodeConfig
+from .token_selection_strategy.config import LogitsNormalization
 
 
 def _decode_dtype(name: str) -> sfnp.DType:
@@ -135,6 +136,8 @@ class ModelParams:
     # ABI of the module.
     module_abi_version: int = 1
 
+    logits_normalization: LogitsNormalization = LogitsNormalization.NONE
+
     # The element type of the attention caches.
     attn_dtype: sfnp.DType = sfnp.float16
 
@@ -192,15 +195,6 @@ class ModelParams:
         return ModelParams.from_json(json_text)
 
 
-# From: https://stackoverflow.com/questions/1094841/get-human-readable-version-of-file-size
-def human_size(num, suffix="B"):
-    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
-        if abs(num) < 1024.0:
-            return f"{num:3.1f}{unit}{suffix}"
-        num /= 1024.0
-    return f"{num:.1f}Yi{suffix}"
-
-
 @dataclass_json(undefined=Undefined.RAISE)
 @dataclass
 class ServerParams:
@@ -215,19 +209,16 @@ class ServerParams:
     # KV cache configuration
     prefix_sharing_algorithm: str = "none"  # none or trie
 
-    # Server runtime configuration
-    host: Optional[str] = None
-    port: int = 8000
-    root_path: Optional[str] = None
-    timeout_keep_alive: int = 5
-
     # Program isolation configuration
     program_isolation: str = "per_call"
+
+    decode_config: DecodeConfig | None = None
 
     # Device configuration
     device_ids: list[str] = field(default_factory=list)
     amdgpu_async_allocations: bool = False
     amdgpu_allocators: Optional[str] = None
+    amdgpu_allow_device_reuse: bool = False
 
     @staticmethod
     def load(config_path: Optional[Path] = None) -> "ServerParams":
