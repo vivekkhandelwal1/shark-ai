@@ -260,26 +260,26 @@ def update_norm_layer(
         new_name = hf_to_gguf(sub_name) + ".weight"
         single_replace(quant_theta, sub_name, new_name, updated_tensors)
     layer_idx = layer_name.split(".")[-1]
-    if "kv_cache_scale" in quant_theta(layer_name, "self_attn").keys:
-        kv_cache_scale = (
-            quant_theta(layer_name, "self_attn").tensor("kv_scale").as_torch()
-        )
-        new_name = f"blk.{layer_idx}.kv_cache"
-        updated_tensors[new_name] = StaticScaledQuantizer(
-            name=new_name + ".quantizer",
-            scale=1.0 / (kv_cache_scale * 2.0),
-            reciprocal_scale=kv_cache_scale * 2.0,
-            dtype=torch.float8_e4m3fnuz,
-        )
-    if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
-        prob_output_scale = (
-            quant_theta(layer_name, "self_attn").tensor("prob_output_scale").as_torch()
-            * 2.0
-        )
-        new_name = f"blk.{layer_idx}.attn_scale"
-        updated_tensors[new_name] = DefaultPrimitiveTensor(
-            name=new_name, data=prob_output_scale
-        )
+    # if "kv_cache_scale" in quant_theta(layer_name, "self_attn").keys:
+    #     kv_cache_scale = (
+    #         quant_theta(layer_name, "self_attn").tensor("kv_scale").as_torch()
+    #     )
+    #     new_name = f"blk.{layer_idx}.kv_cache"
+    #     updated_tensors[new_name] = StaticScaledQuantizer(
+    #         name=new_name + ".quantizer",
+    #         scale=1.0 / (kv_cache_scale * 2.0),
+    #         reciprocal_scale=kv_cache_scale * 2.0,
+    #         dtype=torch.float8_e4m3fnuz,
+    #     )
+    # if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
+    #     prob_output_scale = (
+    #         quant_theta(layer_name, "self_attn").tensor("prob_output_scale").as_torch()
+    #         * 2.0
+    #     )
+    #     new_name = f"blk.{layer_idx}.attn_scale"
+    #     updated_tensors[new_name] = DefaultPrimitiveTensor(
+    #         name=new_name, data=prob_output_scale
+    #     )
 
 
 def single_replace(
@@ -313,11 +313,13 @@ def main(argv):
         help="Base model to use for split sizes to decompose the qkv tensor. Default is 7b, 70b is also supported.",
         choices=["7b", "70b", "405b"],
     )
+    # Note: 70b = 40 layers is the correct number of layers
     args = cli.parse(parser, args=argv)
 
     config_json_path: Path = args.config_json
     params_path: Path = args.params
     # TODO: find a way to get this programatically so we don't have to flag for it
+    # TODO: we need a differnet number, not sure what
     split_sizes = [4096, 4096, 4096] if args.model_base == "7b" else [8192, 1024, 1024]
     layers_per_base = {"7b": 32, "70b": 40, "405b": 125}
     num_layers = layers_per_base[args.model_base]
