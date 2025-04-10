@@ -113,6 +113,20 @@ class LlamaHParams:
             attn_head_dim = qk_nope_head_dim + qk_rope_head_dim
         else:
             attn_head_dim = rope_dimension_count
+            route_scale = None
+            attention_softcap = None
+            n_expert_groups = None
+            n_limited_groups = None
+            expert_shared_count = None
+            q_lora_rank = None
+            kv_lora_rank = None
+            qk_nope_head_dim = None
+            qk_rope_head_dim = None
+            v_head_dim = None
+            rope_scaling_type = None
+            rope_scaling_factor = None
+            rope_scaling_original_context_length = None
+            rope_scaling_yarn_log_multiplier = None
 
         return LlamaHParams(
             model_arch=name_prefix,

@@ -93,8 +93,12 @@ class MoeBlock(ThetaLayer):
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
 
+        # self.n_expert_groups = None
+        # self.n_limited_groups = None
         # Select top k experts from router weights
         if self.n_expert_groups is not None and self.n_limited_groups is not None:
+            # print('moe here 1')
+
             scores_for_choice = router_weights.view(-1, self.expert_count)
 
             group_scores = (
@@ -119,6 +123,7 @@ class MoeBlock(ThetaLayer):
                 scores_for_choice, k=self.expert_used_count, dim=-1
             )
         else:
+            # print('moe here 2')
             expert_gate, top_k_experts = topk(
                 router_weights, self.expert_used_count, dim=-1
             )
