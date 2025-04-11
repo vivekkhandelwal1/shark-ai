@@ -68,8 +68,9 @@ class PagedDeepseekModelV1(BaseCausalLMModel):
             ),
         )
         self.add_module("output_lm_head", LinearLayer(theta("output")))
-        # hp.block_count = 1
+        hp.block_count = 1
         blk_range = range(0, hp.block_count)
+        blk_range = [3]
         self.attn_blocks = nn.ModuleList(
             [
                 AttentionFFNBlock(
