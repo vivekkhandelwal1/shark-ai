@@ -9,7 +9,7 @@ import os
 from datetime import datetime
 
 class LLMClient:
-    def __init__(self, base_url: str = "http://149.28.123.17:8002"):
+    def __init__(self, base_url: str = "http://localhost:8000"):
         self.base_url = base_url.rstrip('/')
         
     async def generate(
@@ -78,17 +78,19 @@ class LLMClient:
         
         return results
 
-async def run_benchmark(max_completion_tokens: int = 50, num_requests: int = 64):
+async def run_benchmark(input_token_length:int = 100, output_token_length: int = 50, num_concurrent_requests: int = 64, token_selection_strategy: str = "multi_greedy"):
     client = LLMClient()
-    prompt = "One Two Three Four Five Six Seven Eight Nine Ten Eleven Twelve Thirteen Fourteen Fifteen Sixteen Seventeen Eighteen Nineteen Twenty Twenty One Twenty Two Twenty Three Twenty Four Twenty Five Twenty Six Twenty Seven Twenty Eight Twenty Nine Thirty Thirty One Thirty Two Thirty Three Thirty Four Thirty Five Thirty Six Thirty Seven Thirty Eight Thirty Nine Forty Forty One Forty Two Forty Three Forty Four Forty Five Forty Six Forty Seven Forty Eight Forty Nine Fifty Fifty One Fifty Two Fifty Three Fifty Four Fifty Five Fifty Six Fifty Seven Fifty Eight Fifty Nine Sixty Sixty One Sixty Two Sixty Three Sixty Four Sixty Five Sixty Six Sixty Seven Sixty Eight Sixty Nine Seventy Seventy One Seventy Two Seventy Three Seventy Four Seventy Five Seventy Six Seventy Seven Seventy Eight Seventy Nine Eighty Eighty One Eighty Two Eighty Three Eighty Four Eighty Five Eighty Six Eighty Seven Eighty Eight Eighty Nine Ninety Ninety One Ninety Two Ninety Three Ninety Four"
-    
+
+    prompt = [ "one" for _ in range(input_token_length)]
+    prompt = " ".join(prompt)
+
     # Create tasks
     tasks = []
-    for _ in range(num_requests):
+    for _ in range(num_concurrent_requests):
         tasks.append(client.generate(
             text=prompt,
             sampling_params={
-                "max_completion_tokens": max_completion_tokens,
+                "max_completion_tokens": output_token_length,
                 "token_selection_strategy": "multi_greedy",
                 "num_beams": 8
             }
@@ -105,15 +107,15 @@ async def run_benchmark(max_completion_tokens: int = 50, num_requests: int = 64)
     time_to_first_token = [result["metrics"]["time_to_first_token"] for result in results]
     start_times = [result["metrics"]["start_time"] - start_time for result in results]
     end_times = [result["metrics"]["end_time"] - start_time for result in results]
-    time_per_request = [end_times[i] - start_times[i] for i in range(num_requests)]
+    time_per_request = [end_times[i] - start_times[i] for i in range(num_concurrent_requests)]
     num_generated_tokens = [result["metrics"]["num_tokens"] for result in results]
     
     # Print results
-    print(f"Max Completion Tokens: {max_completion_tokens}")
-    print(f"Total number of requests: {num_requests}")
+    print(f"Max Completion Tokens: {output_token_length}")
+    print(f"Total number of requests: {num_concurrent_requests}")
     print(f"Total time: {total_time:.2f} seconds")
-    print(f"Requests per second: {num_requests/total_time:.2f}")
-    print(f"Average latency: {total_time/num_requests:.2f} seconds")
+    print(f"Requests per second: {num_concurrent_requests/total_time:.2f}")
+    print(f"Average latency: {total_time/num_concurrent_requests:.2f} seconds")
     print(f"Time to first token: Mean: {np.mean(time_to_first_token):.4f}s, SD: {np.std(time_to_first_token):.4f}s, Median: {np.median(time_to_first_token):.4f}s, Min: {np.min(time_to_first_token):.4f}s, Max: {np.max(time_to_first_token):.4f}s")
     print(f"Time per token: Mean: {np.mean(token_generation_times):.4f}s, SD: {np.std(token_generation_times):.4f}s, Median: {np.median(token_generation_times):.4f}s, Min: {np.min(token_generation_times):.4f}s, Max: {np.max(token_generation_times):.4f}s")
     print(f"Request processing start time: Mean: {np.mean(start_times):.4f}s, SD: {np.std(start_times):.4f}s, Median: {np.median(start_times):.4f}s, Min: {np.min(start_times):.4f}s, Max: {np.max(start_times):.4f}s")
@@ -124,11 +126,11 @@ async def run_benchmark(max_completion_tokens: int = 50, num_requests: int = 64)
     
     # Return results for CSV
     return {
-        "max_completion_tokens": max_completion_tokens,
-        "num_requests": num_requests,
+        "max_completion_tokens": output_token_length,
+        "num_requests": num_concurrent_requests,
         "total_time": total_time,
-        "requests_per_second": num_requests/total_time,
-        "avg_latency": total_time/num_requests,
+        "requests_per_second": num_concurrent_requests/total_time,
+        "avg_latency": total_time/num_concurrent_requests,
         "ttft_mean": np.mean(time_to_first_token),
         "ttft_std": np.std(time_to_first_token),
         "ttft_median": np.median(time_to_first_token),
@@ -167,7 +169,7 @@ async def run_all_benchmarks():
     
     for tokens in token_values:
         print(f"\n\nRunning benchmark with max_completion_tokens = {tokens}")
-        result = await run_benchmark(max_completion_tokens=tokens, num_requests=1000)
+        result = await run_benchmark(output_token_length=tokens, num_concurrent_requests=100)
         all_results.append(result)
     
     # Create CSV file
