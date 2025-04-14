@@ -137,9 +137,8 @@ async def run_benchmark(input_token_length:int = 100, output_token_length: int =
     end_times = [result["metrics"]["end_time"] - start_time for result in results]
     time_per_request = [end_times[i] - start_times[i] for i in range(num_concurrent_requests)]
     num_generated_tokens = [result["metrics"]["num_tokens"] for result in results]
-    print(f"Generated text: {results[0]['metrics']['generated_text']}")
-    # Flatten token_generation_times for statistics
-    flattened_token_times = [item for sublist in token_generation_times for item in sublist]
+    # print(f"Generated text: {results[0]['metrics']['generated_text']}")
+    flattened_token_times = sorted([item for sublist in token_generation_times for item in sublist])
     TPS_times = [flattened_token_times[i] - flattened_token_times[i-1] for i in range(1, len(flattened_token_times))]
     TPOT_times = [[token_times[i] - token_times[i-1] for i in range(1, len(token_times))] for token_times in token_generation_times]
     TPOT_times = [item for sublist in TPOT_times for item in sublist]
@@ -181,10 +180,10 @@ async def run_benchmark(input_token_length:int = 100, output_token_length: int =
 
 async def run_all_benchmarks():
     input_token_lengths = [1024]
-    output_token_lengths = [2, 16, 32, 64]
+    output_token_lengths = [1, 16, 32, 64]
     num_concurrent_requests = [1, 2, 4, 8]
     token_selection_strategies = ["greedy", "multi_greedy", "beam_search"]
-    token_selection_strategy = token_selection_strategies[2]
+    token_selection_strategy = token_selection_strategies[0]
     all_results = []
 
     for num_concurrent_requests in num_concurrent_requests:
