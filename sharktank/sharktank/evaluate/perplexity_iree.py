@@ -272,15 +272,36 @@ class PerplexityIree:
 
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
 
-            pad_logits = torch.zeros(
-                out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
+        if self.out_logits.dtype == torch.float8_e4m3fnuz:
+            out_logits_as_int8 = self.out_logits.view(dtype=torch.int8)
+            self.out_logits = torch.cat((out_logits_as_int8, self.pad_logits), 1).to(
+                self.torch_device
             )
+        else:
+            self.out_logits = torch.cat((self.out_logits, self.pad_logits), 1).to(
+                self.torch_device
+            )
+    @timeit
+    def compute_perplexity(self):
+        from torch.nn import CrossEntropyLoss
+        loss_fct = CrossEntropyLoss(reduction="none")
 
-            out_logits = torch.cat((out_logits, pad_logits), 1).to(self.torch_device)
+        ## perplexity = e ^ (sum(losses) / num_tokenized_tokens)
+        crossentropy_loss = (
+            loss_fct(self.out_logits.transpose(1, 2), self.token_ids)
+            * self.attention_mask
+        ).sum(1)
+        crossentropy_loss = torch.tensor(crossentropy_loss.tolist())
+        perplexity_batch = torch.exp(
+            crossentropy_loss / self.attention_mask.sum(1)
+        ).tolist()
 
-            return out_logits
+        perplexity_batch = [round(ppl, 6) for ppl in perplexity_batch]
 
-        return with_iree_device_context(run_iree_module, [self.runner.config.device])
+        return {
+            "perplexities": perplexity_batch,
+            "mean_perplexity": round(np.mean(perplexity_batch), 6),
+        }
 
     def get_perplexity(
         self, test_prompts: list[str], skip_decode: bool
