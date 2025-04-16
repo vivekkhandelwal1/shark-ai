@@ -15,6 +15,8 @@ from PIL import Image
 from collections import namedtuple
 import base64
 import gc
+import queue
+import threading
 
 import shortfin as sf
 import shortfin.array as sfnp
@@ -33,6 +35,7 @@ prog_isolations = {
     "per_call": sf.ProgramIsolation.PER_CALL,
 }
 
+TOKENIZER_LOCK = threading.Lock()
 
 class GenerateService:
     """Top level service interface for image generation."""
@@ -80,7 +83,7 @@ class GenerateService:
 
         self.workers = []
         self.meta_fibers = []
-        self.idle_meta_fibers = []
+        self.idle_meta_fibers = queue.Queue()
         # For each worker index we create one on each device, and add their fibers to the idle set.
         # This roughly ensures that the first picked fibers are distributed across available devices.
         for idx, device in enumerate(self.sysman.ls.devices):
@@ -95,7 +98,7 @@ class GenerateService:
                     raw_fiber, len(self.meta_fibers), worker_idx
                 )
                 self.meta_fibers.append(meta_fiber)
-                self.idle_meta_fibers.append(meta_fiber)
+                self.idle_meta_fibers.put(meta_fiber)
         for idx in range(len(self.workers)):
             self.inference_programs[idx] = {}
             self.inference_functions[idx] = {}
@@ -107,7 +110,7 @@ class GenerateService:
 
     def equip_fiber(self, fiber, idx, worker_idx):
         MetaFiber = namedtuple(
-            "MetaFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers"]
+            "MetaFiber", ["fiber", "idx", "worker_idx", "device", "command_buffers", "lock"]
         )
         cb_sets_per_fiber = 1
         cbs = []
@@ -115,7 +118,7 @@ class GenerateService:
             for bs in self.model_params.all_batch_sizes:
                 cbs.append(initialize_command_buffer(fiber, self.model_params, bs=bs))
 
-        return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs)
+        return MetaFiber(fiber, idx, worker_idx, fiber.device(0), cbs, threading.Lock())
 
     def load_inference_module(
         self, vmfb_path: Path, component: str = None, batch_size: int = None
@@ -310,16 +313,17 @@ class BatcherProcess(sf.Process):
         batches = self.sort_batches()
         for batch in batches.values():
             # Assign the batch to the next idle fiber.
-            if len(self.service.idle_meta_fibers) == 0:
+            try:
+                meta_fiber = self.service.idle_meta_fibers.get_nowait()
+            except queue.Empty:
                 logger.debug("Waiting for an idle fiber...")
                 return
-            meta_fiber = self.service.idle_meta_fibers.pop(0)
             logger.debug(
                 f"Sending batch to fiber {meta_fiber.idx} (worker {meta_fiber.worker_idx})"
             )
             await self.board(batch["reqs"][0], meta_fiber=meta_fiber)
             if self.service.prog_isolation != sf.ProgramIsolation.PER_FIBER:
-                self.service.idle_meta_fibers.append(meta_fiber)
+                self.service.idle_meta_fibers.put(meta_fiber)
 
     def sort_batches(self):
         """Files pending requests into sorted batches suitable for program invocations."""
@@ -379,15 +383,16 @@ class InferenceExecutorProcess(sf.Process):
         self.exec_request: InferenceExecRequest = None
 
     def assign_command_buffer(self, request: InferenceExecRequest):
-        for cb in self.meta_fiber.command_buffers:
-            if cb.batch_size == self.exec_request.batch_size:
-                self.exec_request.set_command_buffer(cb)
-                self.meta_fiber.command_buffers.remove(cb)
-                return
-        cb = initialize_command_buffer(
-            self.fiber, self.service.model_params, request.batch_size
-        )
-        self.exec_request.set_command_buffer(cb)
+        with self.meta_fiber.lock:
+            for cb in self.meta_fiber.command_buffers:
+                if cb.batch_size == self.exec_request.batch_size:
+                    self.exec_request.set_command_buffer(cb)
+                    self.meta_fiber.command_buffers.remove(cb)
+                    return
+            cb = initialize_command_buffer(
+                self.fiber, self.service.model_params, request.batch_size
+            )
+            self.exec_request.set_command_buffer(cb)
         return
 
     @measure(type="exec", task="inference process")
@@ -415,9 +420,10 @@ class InferenceExecutorProcess(sf.Process):
             # TODO: Cancel and set error correctly
             self.exec_request.done.set_success()
 
-        self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
+        with self.meta_fiber.lock:
+            self.meta_fiber.command_buffers.append(self.exec_request.command_buffer)
         if self.service.prog_isolation == sf.ProgramIsolation.PER_FIBER:
-            self.service.idle_meta_fibers.append(self.meta_fiber)
+            self.service.idle_meta_fibers.put(self.meta_fiber)
 
     async def _prepare(self, device):
         # Tokenize prompts and negative prompts. We tokenize in bs1 for now and join later.
@@ -431,11 +437,12 @@ class InferenceExecutorProcess(sf.Process):
         for i in range(self.exec_request.batch_size):
             input_ids_list = []
             neg_ids_list = []
-            for tokenizer in self.service.tokenizers:
-                input_ids = tokenizer.encode(self.exec_request.prompt[i]).input_ids
-                input_ids_list.append(input_ids)
-                neg_ids = tokenizer.encode(self.exec_request.neg_prompt[i]).input_ids
-                neg_ids_list.append(neg_ids)
+            with TOKENIZER_LOCK:
+                for tokenizer in self.service.tokenizers:
+                    input_ids = tokenizer.encode(self.exec_request.prompt[i]).input_ids
+                    input_ids_list.append(input_ids)
+                    neg_ids = tokenizer.encode(self.exec_request.neg_prompt[i]).input_ids
+                    neg_ids_list.append(neg_ids)
             ids_list = [*input_ids_list, *neg_ids_list]
             batch_ids_lists.append(ids_list)
 
@@ -553,9 +560,10 @@ class InferenceExecutorProcess(sf.Process):
                     "INVOKE %r",
                     fns["run_step"],
                 )
-                (cb.latents,) = await fns["run_step"](
+                latent_out = await fns["run_step"](
                     cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
                 )
+                cb.latents = latent_out[0].clone()
             duration = time.time() - start
             accum_step_duration += duration
         average_step_duration = accum_step_duration / self.exec_request.steps
@@ -586,7 +594,7 @@ class InferenceExecutorProcess(sf.Process):
                 )
                 res = cb.images.view(i)
                 (res,) = await fns["decode"](cb.latents.view(i), fiber=self.fiber)
-                cb.images.view(i).copy_from(res)
+                cb.images.view(i).copy_from(res.clone())
         else:
             logger.debug(
                 "INVOKE %r: %s",
@@ -598,18 +606,20 @@ class InferenceExecutorProcess(sf.Process):
 
         # Wait for the device-to-host transfer, so that we can read the
         # data with .items.
-        check_host_array(cb.images_host)
+        # check_host_array(cb.images_host)
+        await device
 
-        image_array = cb.images_host.items
-        dtype = image_array.typecode
-        if cb.images_host.dtype == sfnp.float16:
-            dtype = np.float16
-        self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
-            self.exec_request.batch_size,
-            3,
-            self.exec_request.height,
-            self.exec_request.width,
-        )
+        with threading.Lock():
+            image_array = cb.images_host.items
+            dtype = image_array.typecode
+            if cb.images_host.dtype == sfnp.float16:
+                dtype = np.float16
+            self.exec_request.image_array = np.frombuffer(image_array, dtype=dtype).reshape(
+                self.exec_request.batch_size,
+                3,
+                self.exec_request.height,
+                self.exec_request.width,
+            )
         return
 
     async def _postprocess(self, device):
