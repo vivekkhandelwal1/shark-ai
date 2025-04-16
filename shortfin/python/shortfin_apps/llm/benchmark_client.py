@@ -8,12 +8,14 @@ import csv
 import os
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+import argparse
 
 
 class LLMClient:
-    def __init__(self, base_url: str = "http://localhost:8080", max_workers: int = 128):
+    def __init__(self, base_url: str = "http://localhost:8080", max_workers: int = 128, stream: bool = False):
         self.base_url = base_url.rstrip("/")
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.stream = stream
 
     async def generate(
         self,
@@ -30,7 +32,7 @@ class LLMClient:
             "logprob_start_len": -1,
             "top_logprobs_num": 0,
             "return_text_in_logprobs": False,
-            "stream": False,
+            "stream": self.stream,
         }
 
         headers = {"Content-Type": "application/json"}
@@ -41,33 +43,49 @@ class LLMClient:
             start_time = time.perf_counter()
             token_times = []
             generated_text = []
-            try:
-                print(f"Sending request to {self.base_url}/generate")
-                with requests.post(
+            if self.stream:
+                try:
+                    print(f"Sending request to {self.base_url}/generate")
+                    with requests.post(
+                        f"{self.base_url}/generate",
+                        headers=headers,
+                        json=data,
+                        stream=self.stream,
+                        timeout=1000
+                    ) as response:
+                        response.raise_for_status()
+
+                        # Process the response as it arrives
+                        for line in response.iter_lines():
+                            if line:
+                                line_text = line.decode("utf-8")
+                                if line_text.startswith("data"):
+                                    token_time = time.perf_counter()
+                                    token_times.append(token_time)
+                                    if save_output:
+                                        generated_text.append(line_text.split(": ", 1)[1])
+                    print(f"Received response from {self.base_url}/generate")
+                except Exception as e:
+                    print(f"Error in process_stream: {e}")
+                    # Return empty results in case of error
+                    return start_time, [], []
+            else:
+                response = requests.post(
                     f"{self.base_url}/generate",
                     headers=headers,
                     json=data,
-                    stream=False,
                     timeout=1000
-                    # timeout=60,  # Add timeout to prevent hanging
-                ) as response:
+                )
+                if response.status_code != 200:
+                    print(f"Error in response: {response.status_code} {response.text}")
+                    return start_time, [], []
+                else:
+                    # print(f"Received response from {self.base_url}/generate")
+                    # print(response.json())
+                    token_times.append(time.perf_counter())
                     response.raise_for_status()
-
-                    # Process the response as it arrives
-                    for line in response.iter_lines():
-                        if line:
-                            line_text = line.decode("utf-8")
-                            if line_text.startswith("data"):
-                                token_time = time.perf_counter()
-                                token_times.append(token_time)
-                                if save_output:
-                                    generated_text.append(line_text.split(": ", 1)[1])
-                print(f"Received response from {self.base_url}/generate")
-            except Exception as e:
-                print(f"Error in process_stream: {e}")
-                # Return empty results in case of error
-                return start_time, [], []
-
+                    # generated_text = response.json()["text"]
+            
             return start_time, token_times, generated_text
 
         # Run the processing function in the thread pool with our dedicated executor
@@ -78,17 +96,17 @@ class LLMClient:
         )
 
         # Handle case where no tokens were generated
-        if not token_times:
-            results["metrics"] = {
-                "start_time": start_time,
-                "end_time": start_time,
-                "time_to_first_token": 0,
-                "token_generation_times": [],
-                "num_tokens": 0,
-                "generated_text": "",
-                "error": "No tokens generated",
-            }
-            return results
+        # if not token_times:
+        #     results["metrics"] = {
+        #         "start_time": start_time,
+        #         "end_time": end_time,
+        #         "time_to_first_token": 0,
+        #         "token_generation_times": [],
+        #         "num_tokens": 0,
+        #         "generated_text": "",
+        #         "error": "No tokens generated",
+        #     }
+        #     return results
 
         time_to_first_token = token_times[0] - start_time if token_times else 0
         num_tokens = len(token_times)
@@ -134,6 +152,7 @@ def calculate_metrics(
     flattened_token_times = sorted(
         [item for sublist in token_generation_times for item in sublist]
     )
+    
     TPS_times = [
         flattened_token_times[i] - flattened_token_times[i - 1]
         for i in range(1, len(flattened_token_times))
@@ -143,8 +162,10 @@ def calculate_metrics(
         for token_times in token_generation_times
     ]
     TPOT_times = [item for sublist in TPOT_times for item in sublist]
+    E2E_latency = end_times[-1] - start_times[0]
 
     return {
+        "E2E_latency": E2E_latency,
         "time_to_first_token": time_to_first_token,
         "TPOT_times": TPOT_times,
         "TPS_times": TPS_times,
@@ -156,7 +177,7 @@ def calculate_metrics(
 
 
 def print_benchmark_results(
-    metrics: Dict[str, Any], config: Dict[str, Any], total_time: float
+    metrics: Dict[str, Any], config: Dict[str, Any]
 ):
     """Print benchmark results in a formatted way."""
     num_concurrent_requests = len(metrics["time_to_first_token"])
@@ -168,9 +189,9 @@ def print_benchmark_results(
     print(f"Token selection strategy: {config['token_selection_strategy']}")
 
     print("\nPerformance Metrics:")
-    print(f"E2E latency: {total_time:.2f} seconds")
-    print(f"Requests per second: {num_concurrent_requests/total_time:.2f}")
-    print(f"Average latency: {total_time/num_concurrent_requests:.2f} seconds")
+    print(f"E2E latency: {metrics['E2E_latency']:.2f} seconds")
+    print(f"Requests per second: {num_concurrent_requests/metrics['E2E_latency']:.2f}")
+    print(f"Average latency: {np.mean(metrics['time_per_request']):.2f} seconds")
 
     print("\nDetailed Metrics:")
     metric_names = {
@@ -194,19 +215,20 @@ def print_benchmark_results(
 
 
 def get_csv_results(
-    metrics: Dict[str, Any], config: Dict[str, Any], total_time: float
+    metrics: Dict[str, Any], config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Get results in a format suitable for CSV export."""
     num_concurrent_requests = len(metrics["time_to_first_token"])
 
     return {
+        "E2E_latency": metrics["E2E_latency"],
         "token_selection_strategy": config["token_selection_strategy"],
         "input_token_length": config["input_token_length"],
         "output_token_length": config["output_token_length"],
         "num_concurrent_requests": num_concurrent_requests,
-        "total_time": total_time,
-        "requests_per_second": num_concurrent_requests / total_time,
-        "avg_latency": total_time / num_concurrent_requests,
+        "total_time": metrics["E2E_latency"],
+        "requests_per_second": num_concurrent_requests / metrics["E2E_latency"],
+        "avg_latency": np.mean(metrics["time_per_request"]),
         "TTFT_median": np.median(metrics["time_to_first_token"]),
         "TPOT_median": np.median(metrics["TPOT_times"]),
         "TPS_median": np.median(metrics["TPS_times"]),
@@ -219,8 +241,10 @@ async def run_benchmark(
     output_token_length: int = 50,
     num_concurrent_requests: int = 64,
     token_selection_strategy: str = "multi_greedy",
+    endpoint: str = "http://localhost:8080",
 ):
-    client = LLMClient()
+    """Execute the benchmark and return raw data."""
+    client = LLMClient(base_url=endpoint)
 
     prompt = " ".join(["one" for _ in range(input_token_length)])
     config = {
@@ -248,47 +272,165 @@ async def run_benchmark(
 
     results = await asyncio.gather(*tasks)
     end_time = time.perf_counter()
-    total_time = end_time - start_time
+    
+    # Return raw data for processing
+    return {
+        "raw_results": results,
+        "start_time": start_time,
+        "end_time": end_time,
+        "config": config,
+        "num_concurrent_requests": num_concurrent_requests
+    }
 
-    # Calculate and print metrics
-    metrics = calculate_metrics(results, start_time)
-    print_benchmark_results(metrics, config, total_time)
+def compute_benchmark_results(benchmark_data):
+    """Compute benchmark results from raw data."""
+    raw_results = benchmark_data["raw_results"]
+    start_time = benchmark_data["start_time"]
+    end_time = benchmark_data["end_time"]
+    config = benchmark_data["config"]
+    num_concurrent_requests = benchmark_data["num_concurrent_requests"]
+    
+    # Calculate metrics
+    metrics = calculate_metrics(raw_results, start_time)
+    
+    # Print results
+    print_benchmark_results(metrics, config)
+    
+    # Get CSV results
+    csv_results = get_csv_results(metrics, config)
+    
+    return csv_results
 
-    # Print sample generated text
-    if (
-        results
-        and "metrics" in results[0]
-        and "generated_text" in results[0]["metrics"]
-    ):
-        print(f"\nSample Generated Text:\n{results[0]['metrics']['generated_text']}")
-
-    # Return results for CSV
-    return get_csv_results(metrics, config, total_time)
-
+async def calculate_throughput(
+    input_token_length: int,
+    output_token_length: int,
+    num_concurrent_requests: int,
+    token_selection_strategy: str,
+    endpoint: str,
+    num_runs: int = 20,
+):
+    """Calculate throughput by running multiple benchmark runs with the optimal number of concurrent requests."""
+    print(f"\nCalculating throughput with {num_concurrent_requests} concurrent requests over {num_runs} runs...")
+    
+    # Store all benchmark data for later processing
+    all_benchmark_data = []
+    
+    # Run all benchmarks first
+    for run in range(num_runs):
+        print(f"Run {run+1}/{num_runs}")
+        benchmark_data = await run_benchmark(
+            input_token_length=input_token_length,
+            output_token_length=output_token_length,
+            num_concurrent_requests=num_concurrent_requests,
+            token_selection_strategy=token_selection_strategy,
+            endpoint=endpoint,
+        )
+        all_benchmark_data.append(benchmark_data)
+    
+    # Process all results after all runs are completed
+    print("\nProcessing results from all runs...")
+    all_results = []
+    latencies = []
+    
+    for benchmark_data in all_benchmark_data:
+        result = compute_benchmark_results(benchmark_data)
+        all_results.append(result)
+        latencies.append(result["E2E_latency"])
+    
+    # Calculate statistics
+    avg_latency = np.mean(latencies)
+    std_latency = np.std(latencies)
+    min_latency = np.min(latencies)
+    max_latency = np.max(latencies)
+    
+    # Calculate throughput
+    throughput = num_concurrent_requests / avg_latency
+    
+    print(f"\nThroughput Results:")
+    print(f"Number of concurrent requests: {num_concurrent_requests}")
+    print(f"Average latency: {avg_latency:.4f}s ± {std_latency:.4f}s")
+    print(f"Min latency: {min_latency:.4f}s")
+    print(f"Max latency: {max_latency:.4f}s")
+    print(f"Throughput: {throughput:.2f} requests/second")
+    
+    return {
+        "num_concurrent_requests": num_concurrent_requests,
+        "avg_latency": avg_latency,
+        "std_latency": std_latency,
+        "min_latency": min_latency,
+        "max_latency": max_latency,
+        "throughput": throughput,
+    }
 
 async def run_all_benchmarks(
     input_token_lengths: List[int] = [1024],
     output_token_lengths: List[int] = [64],
-    num_concurrent_requests: List[int] = [100],
+    min_concurrent_requests: int = 10,
+    max_concurrent_requests: int = 200,
     token_selection_strategy: str = "greedy",
+    target_latency: float = 4.2,
+    endpoint: str = "http://localhost:8080",
+    num_throughput_runs: int = 20,
 ):
     all_results = []
+    throughput_results = []
 
-    for request_count in num_concurrent_requests:
-        for input_token_length in input_token_lengths:
-            for output_token_length in output_token_lengths:
-                print(
-                    f"\n\nRunning benchmark with max_completion_tokens = {output_token_length}"
-                )
-                result = await run_benchmark(
+    for input_token_length in input_token_lengths:
+        for output_token_length in output_token_lengths:
+            print(
+                f"\n\nRunning benchmarks with input_token_length = {input_token_length}, output_token_length = {output_token_length}"
+            )
+            
+            # Start with minimum concurrent requests
+            current_requests = min_concurrent_requests
+            optimal_requests = None
+            
+            while current_requests <= max_concurrent_requests:
+                print(f"Testing with {current_requests} concurrent requests")
+                benchmark_data = await run_benchmark(
                     input_token_length=input_token_length,
                     output_token_length=output_token_length,
-                    num_concurrent_requests=request_count,
+                    num_concurrent_requests=current_requests,
                     token_selection_strategy=token_selection_strategy,
+                    endpoint=endpoint,
                 )
+                result = compute_benchmark_results(benchmark_data)
                 all_results.append(result)
+                
+                # Check if we've reached our target latency
+                if result["E2E_latency"] >= target_latency:
+                    print(f"Reached target latency of {target_latency}s with {current_requests} concurrent requests")
+                    optimal_requests = current_requests
+                    break
+                
+                # Increase concurrent requests for next iteration
+                # Using a step size that increases with the current request count
+                step_size = max(1, current_requests // 10)
+                current_requests += step_size
+                
+                # If we've exceeded max_concurrent_requests, break
+                if current_requests > max_concurrent_requests:
+                    print(f"Reached maximum concurrent requests ({max_concurrent_requests}) without meeting target latency")
+                    optimal_requests = max_concurrent_requests
+            
+            # Calculate throughput with the optimal number of concurrent requests
+            if optimal_requests:
+                throughput_result = await calculate_throughput(
+                    input_token_length=input_token_length,
+                    output_token_length=output_token_length,
+                    num_concurrent_requests=optimal_requests,
+                    token_selection_strategy=token_selection_strategy,
+                    endpoint=endpoint,
+                    num_runs=num_throughput_runs,
+                )
+                throughput_results.append({
+                    "input_token_length": input_token_length,
+                    "output_token_length": output_token_length,
+                    "token_selection_strategy": token_selection_strategy,
+                    **throughput_result
+                })
 
-    # Create CSV file
+    # Create CSV file for benchmark results
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     csv_filename = f"/home/zeeshan/projects/shark-ai/results/benchmark_results_{token_selection_strategy}.csv"
 
@@ -300,8 +442,57 @@ async def run_all_benchmarks(
         for result in all_results:
             writer.writerow(result)
 
-    print(f"\nResults saved to {csv_filename}")
+    print(f"\nBenchmark results saved to {csv_filename}")
+    
+    # Create CSV file for throughput results
+    if throughput_results:
+        throughput_csv_filename = f"/home/zeeshan/projects/shark-ai/results/throughput_results_{token_selection_strategy}.csv"
+        
+        with open(throughput_csv_filename, "w", newline="") as csvfile:
+            fieldnames = throughput_results[0].keys()
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            
+            writer.writeheader()
+            for result in throughput_results:
+                writer.writerow(result)
+                
+        print(f"Throughput results saved to {throughput_csv_filename}")
 
 
 if __name__ == "__main__":
-    asyncio.run(run_all_benchmarks())
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description='Run LLM benchmarking with configurable parameters')
+    
+    # Add arguments
+    parser.add_argument('--input-token-lengths', type=int, nargs='+', default=[1024],
+                        help='List of input token lengths to test')
+    parser.add_argument('--output-token-lengths', type=int, nargs='+', default=[64],
+                        help='List of output token lengths to test')
+    parser.add_argument('--min-concurrent-requests', type=int, default=2,
+                        help='Minimum number of concurrent requests to start with')
+    parser.add_argument('--max-concurrent-requests', type=int, default=10,
+                        help='Maximum number of concurrent requests to test')
+    parser.add_argument('--token-selection-strategy', type=str, default='greedy',
+                        choices=['greedy', 'multi_greedy', 'beam_search'],
+                        help='Token selection strategy to use')
+    parser.add_argument('--target-latency', type=float, default=4.2,
+                        help='Target end-to-end latency in seconds')
+    parser.add_argument('--endpoint', type=str, default='http://localhost:8080',
+                        help='LLM server endpoint URL')
+    parser.add_argument('--num-throughput-runs', type=int, default=20,
+                        help='Number of runs to calculate throughput')
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Run benchmarks with parsed arguments
+    asyncio.run(run_all_benchmarks(
+        input_token_lengths=args.input_token_lengths,
+        output_token_lengths=args.output_token_lengths,
+        min_concurrent_requests=args.min_concurrent_requests,
+        max_concurrent_requests=args.max_concurrent_requests,
+        token_selection_strategy=args.token_selection_strategy,
+        target_latency=args.target_latency,
+        endpoint=args.endpoint,
+        num_throughput_runs=args.num_throughput_runs
+    ))
