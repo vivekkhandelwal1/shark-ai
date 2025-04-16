@@ -315,7 +315,11 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
         )
 
     @skipif_run_quick_llama_test
-    @pytest.mark.timeout(800)
+    @pytest.mark.xfail(
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20528",
+        raises=IreeCompileException,
+    )
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
