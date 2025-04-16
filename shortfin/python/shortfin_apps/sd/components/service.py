@@ -35,7 +35,6 @@ prog_isolations = {
     "per_call": sf.ProgramIsolation.PER_CALL,
 }
 
-TOKENIZER_LOCK = threading.Lock()
 
 class GenerateService:
     """Top level service interface for image generation."""
@@ -437,7 +436,7 @@ class InferenceExecutorProcess(sf.Process):
         for i in range(self.exec_request.batch_size):
             input_ids_list = []
             neg_ids_list = []
-            with TOKENIZER_LOCK:
+            with threading.Lock():
                 for tokenizer in self.service.tokenizers:
                     input_ids = tokenizer.encode(self.exec_request.prompt[i]).input_ids
                     input_ids_list.append(input_ids)
@@ -560,10 +559,9 @@ class InferenceExecutorProcess(sf.Process):
                     "INVOKE %r",
                     fns["run_step"],
                 )
-                latent_out = await fns["run_step"](
+                (cb.latents,) = await fns["run_step"](
                     cb.noise_pred, cb.latents, cb.sigma, cb.next_sigma, fiber=self.fiber
                 )
-                cb.latents = latent_out[0].clone()
             duration = time.time() - start
             accum_step_duration += duration
         average_step_duration = accum_step_duration / self.exec_request.steps
@@ -594,7 +592,7 @@ class InferenceExecutorProcess(sf.Process):
                 )
                 res = cb.images.view(i)
                 (res,) = await fns["decode"](cb.latents.view(i), fiber=self.fiber)
-                cb.images.view(i).copy_from(res.clone())
+                cb.images.view(i).copy_from(res)
         else:
             logger.debug(
                 "INVOKE %r: %s",
