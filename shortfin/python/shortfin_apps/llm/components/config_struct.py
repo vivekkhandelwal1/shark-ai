@@ -227,9 +227,6 @@ class ServerParams:
     # Number of shortfin workers to use during generation
     workers: int = 1
 
-    # Number of shortfin instances
-    instances: int = 1
-
     # Number of fibers to create per worker
     fibers_per_worker: int = 1
 

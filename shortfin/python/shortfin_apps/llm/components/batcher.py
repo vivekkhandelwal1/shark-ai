@@ -113,6 +113,22 @@ class DoneWorkItem(sf.Message):
         self.count = count
 
 
+@dataclass
+class FiberPool:
+
+    fibers: List[sf.Fiber]
+    idle_fibers: List[sf.Fiber]
+
+    def get_fiber(self):
+        if len(self.idle_fibers) == 0:
+            return None
+
+        return self.idle_fibers.pop(0)
+
+    def return_fiber(self, fiber: sf.Fiber):
+        self.idle_fibers.append(fiber)
+
+
 class LlmBatcherProcess(BatcherProcess):
     """This batcher provides a high-level mechanism for dispatching LLM tasks."""
 
@@ -129,7 +145,7 @@ class LlmBatcherProcess(BatcherProcess):
         ideal_batch_size: int,
         program_isolation: str,
     ):
-        super().__init__(fiber=fiber_pool.fibers[0].fiber)
+        super().__init__(fiber=fiber_pool.fibers[0])
         self.name = name
         self.page_cache = page_cache
         self.model_params = model_params
@@ -196,21 +212,22 @@ class LlmBatcherProcess(BatcherProcess):
         self.board(cache, fiber)
         logger.debug("Post boarding cache state: %r", cache)
         if self.program_isolation != sf.ProgramIsolation.PER_FIBER:
-            self.fiber_pool.return_fiber_to_pool(fiber)
+            self.fiber_pool.return_fiber(fiber)
 
-    def make_process(self, cache: BasePagedAttentionCache, fiber: MetaFiber):
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         ...
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
         ...
 
-    def board(self, cache: BasePagedAttentionCache, fiber: MetaFiber):
+    def board(self, cache: BasePagedAttentionCache, fiber: Fiber):
         # Fill prefill flights.
         pending = self.pending
         if len(pending) == 0:
             return
 
-        reqs = []
+        exec_process = self.make_process(cache, fiber)
+
         for request in pending:
             if len(reqs) >= self.ideal_batch_size:
                 break
@@ -259,12 +276,7 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             program_isolation=program_isolation,
         )
 
-    def make_process(
-        self,
-        cache: BasePagedAttentionCache,
-        fiber: MetaFiber,
-        meta_request: MetaLlmInferenceRequest,
-    ):
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return PrefillExecutorProcess(
             fiber,
             self.functions,
@@ -272,7 +284,6 @@ class PrefillBatcherProcess(LlmBatcherProcess):
             cache.page_pool.page_tables,
             self.fiber_pool,
             self.program_isolation,
-            meta_request,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -321,12 +332,7 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             program_isolation=program_isolation,
         )
 
-    def make_process(
-        self,
-        cache: BasePagedAttentionCache,
-        fiber: MetaFiber,
-        meta_request: MetaLlmInferenceRequest,
-    ):
+    def make_process(self, cache: BasePagedAttentionCache, fiber: Fiber):
         return DecodeExecutorProcess(
             fiber,
             self.functions,
@@ -334,7 +340,6 @@ class DecodeBatcherProcess(LlmBatcherProcess):
             cache.page_pool.page_tables,
             self.fiber_pool,
             self.program_isolation,
-            meta_request,
         )
 
     def board_request(self, cache, request: LlmInferenceExecRequest):
@@ -361,7 +366,6 @@ class LlmExecutorProcess(sf.Process):
         page_tables,
         fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
-        meta_request: MetaLlmInferenceRequest,
     ):
         super().__init__(fiber=fiber.fiber)
         self.name = name
@@ -452,7 +456,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
         page_tables,
         fiber_pool: FiberPool,
         program_isolation: sf.ProgramIsolation,
-        meta_request: MetaLlmInferenceRequest,
     ):
         super().__init__(
             name="prefill_process",
@@ -462,7 +465,6 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             fiber_pool=fiber_pool,
             program_isolation=program_isolation,
-            meta_request=meta_request,
         )
 
     async def get_args(self, bs, device0):
@@ -558,7 +560,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             req.done.set_success()
 
         if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
-            self.fiber_pool.return_fiber_to_pool(self.fiber)
+            self.fiber_pool.return_fiber(self.fiber)
 
 
 class DecodeExecutorProcess(LlmExecutorProcess):
@@ -572,7 +574,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         page_tables,
         fiber_pool: FiberPool,
         isolation: sf.ProgramIsolation,
-        meta_request: MetaLlmInferenceRequest,
     ):
         super().__init__(
             name="decode_process",
@@ -582,7 +583,6 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             page_tables=page_tables,
             fiber_pool=fiber_pool,
             program_isolation=isolation,
-            meta_request=meta_request,
         )
 
     async def get_args(self, bs, device0):
@@ -705,4 +705,4 @@ class DecodeExecutorProcess(LlmExecutorProcess):
             req.done.set_success()
 
         if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
-            self.fiber_pool.return_fiber_to_pool(self.fiber)
+            self.fiber_pool.return_fiber(self.fiber)

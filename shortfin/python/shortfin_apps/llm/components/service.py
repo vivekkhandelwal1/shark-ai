@@ -13,14 +13,7 @@ import shortfin as sf
 import shortfin.array as sfnp
 
 
-from .batcher import (
-    PrefillBatcherProcess,
-    DecodeBatcherProcess,
-    FiberPool,
-    MetaFiber,
-    initialize_buffer_object,
-    LlmBufferObject,
-)
+from .batcher import PrefillBatcherProcess, DecodeBatcherProcess, FiberPool
 from .config_struct import ModelParams, ServerParams
 from .kvcache.base_attention_cache import (
     BasePagedAttentionCache,
@@ -109,11 +102,24 @@ class LlmGenerateService(GenerateService):
             self.current_queue_size -= 1
 
     def initialize_worker_and_fiber(self):
-        
-        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
-        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
-        self.decode_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        num_workers = self.server_params.workers
+        fibers_per_worker = self.server_params.fibers_per_worker
+
+        logger.info(
+            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
+        )
+        fibers = []
+        for i in range(num_workers):
+            worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
+            for _ in range(fibers_per_worker):
+                fiber = self.sysman.ls.create_fiber(worker)
+                fibers.append(fiber)
+
+        self.fiber_pool = FiberPool(
+            fibers,
+            fibers,
+        )
+        self.devices = fibers[0].devices_dict.values()
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
