@@ -25,6 +25,7 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
 from ...utils import GenerateService
+from multiprocessing import Queue
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,26 @@ class LlmGenerateService(GenerateService):
         self.initialize_worker_and_fiber()
         self.initialize_queues()
         self.initialize_page_cache()
+    
+    def initialize_queues(self):
+        """Initialize request and response queues"""
+        self.request_queue = self.sysman.ls.create_queue(f"{self.name}-request-queue")
+        self.response_queue = self.sysman.ls.create_queue(f"{self.name}-response-queue")
+        if self.model_params.decode_batch_sizes:
+            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
+            print(f"Max queue size: {self.max_queue_size}")
+
+    def add_to_queue(self) -> bool:
+        """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        if self.current_queue_size >= self.max_queue_size:
+            return False
+        self.current_queue_size += 1
+        return True
+
+    def remove_from_queue(self):
+        """Remove a request from the queue."""
+        if self.current_queue_size > 0:
+            self.current_queue_size -= 1
 
     def initialize_queues(self):
         """Initialize request and response queues"""
