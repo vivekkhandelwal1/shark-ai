@@ -33,6 +33,7 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
 from ...utils import GenerateService
+from multiprocessing import Queue
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class LlmGenerateService(GenerateService):
         tokenizer: Tokenizer,
         model_params: ModelParams,
         server_params: "ServerParams",
-        program_isolation: str = "per_fiber",
+        program_isolation: str = "per_call",
         max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
@@ -67,6 +68,26 @@ class LlmGenerateService(GenerateService):
         self.initialize_worker_and_fiber()
         self.initialize_queues()
         self.initialize_page_cache()
+    
+    def initialize_queues(self):
+        """Initialize request and response queues"""
+        self.request_queue = self.sysman.ls.create_queue(f"{self.name}-request-queue")
+        self.response_queue = self.sysman.ls.create_queue(f"{self.name}-response-queue")
+        if self.model_params.decode_batch_sizes:
+            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
+            print(f"Max queue size: {self.max_queue_size}")
+
+    def add_to_queue(self) -> bool:
+        """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        if self.current_queue_size >= self.max_queue_size:
+            return False
+        self.current_queue_size += 1
+        return True
+
+    def remove_from_queue(self):
+        """Remove a request from the queue."""
+        if self.current_queue_size > 0:
+            self.current_queue_size -= 1
 
     def initialize_queues(self):
         """Initialize request and response queues"""
@@ -88,30 +109,7 @@ class LlmGenerateService(GenerateService):
             self.current_queue_size -= 1
 
     def initialize_worker_and_fiber(self):
-        num_workers = self.server_params.workers
-        fibers_per_worker = self.server_params.fibers_per_worker
-
-        logger.info(
-            f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
-        )
-        fibers = []
-        for i in range(num_workers):
-            worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
-            for _ in range(fibers_per_worker):
-                fiber = self.sysman.ls.create_fiber(worker)
-                fibers.append(fiber)
-
-        meta_fibers = []
-        for fiber in fibers:
-            device_buffer = LlmBufferObject(
-                initialize_buffer_object(fibers[0].device(0), self.model_params)
-            )
-            meta_fiber = MetaFiber(device_buffer, fiber)
-            meta_fibers.append(meta_fiber)
-
-        self.fiber_pool = FiberPool(meta_fibers)
-
-        self.devices = fibers[0].devices_dict.values()
+        
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
         self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
