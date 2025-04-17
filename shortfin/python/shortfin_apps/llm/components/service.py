@@ -62,6 +62,26 @@ class LlmGenerateService(GenerateService):
 
     def initialize_queues(self):
         """Initialize request and response queues"""
+        self.request_queue = self.sysman.ls.create_queue(f"{self.name}-request-queue")
+        self.response_queue = self.sysman.ls.create_queue(f"{self.name}-response-queue")
+        if self.model_params.decode_batch_sizes:
+            self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
+            print(f"Max queue size: {self.max_queue_size}")
+
+    def add_to_queue(self) -> bool:
+        """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        if self.current_queue_size >= self.max_queue_size:
+            return False
+        self.current_queue_size += 1
+        return True
+
+    def remove_from_queue(self):
+        """Remove a request from the queue."""
+        if self.current_queue_size > 0:
+            self.current_queue_size -= 1
+
+    def initialize_queues(self):
+        """Initialize request and response queues"""
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
             print(f"Max queue size: {self.max_queue_size}")
@@ -97,6 +117,11 @@ class LlmGenerateService(GenerateService):
             fibers,
         )
         self.devices = fibers[0].devices_dict.values()
+
+        self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
+        self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
+        self.decode_fiber = self.sysman.ls.create_fiber(self.main_worker)
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
