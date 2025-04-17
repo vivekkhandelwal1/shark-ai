@@ -99,10 +99,10 @@ class GenerateItemProcess(sf.Process):
             exec_req.free_cache_pages()
 
     def results_callback(self, result: int | list[list[int]]):
-        if is_multi_response(self.decode_config.token_selection_strategy):
-            # TODO: Streaming is not supported for multiple responses
-            self.result_token_ids = result
-            return
+        # if is_multi_response(self.decode_config.token_selection_strategy):
+        #     # TODO: Streaming is not supported for multiple responses
+        #     self.result_token_ids = result
+        #     return
 
         self._append_token(result)
 
@@ -219,8 +219,8 @@ class ClientGenerateBatchProcess(sf.Process):
         for p in gen_processes:
             token_ids = p.result_token_ids
 
-            if not is_multi_response(self.decode_config.token_selection_strategy):
-                token_ids = [token_ids]
+            # if not is_multi_response(self.decode_config.token_selection_strategy):
+            token_ids = [token_ids]
 
             decoded = self.tokenizer.decode(token_ids)
             rs = [GeneratedResponse(d) for d in decoded]

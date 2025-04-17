@@ -99,6 +99,10 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
 
             await beam_group.wait()
             beam_group.process_beams()
+            for beam in beam_group.active_beams:
+                token_int = beam.sample_logits()
+                beam.last_token = token_int
+                config.results_callback(token_int)
 
         config.decode_end_callback(reservations)
         beam_group.clean_up()
@@ -114,4 +118,4 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
                     for beam in beam_group.active_beams
                 ]
             )
-        config.results_callback(results)
+        # config.results_callback(results)
