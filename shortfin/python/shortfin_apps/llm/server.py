@@ -67,6 +67,7 @@ def parse_args(argv):
     )
     return parser.parse_args(argv)
 
+
 def _check_for_per_fiber_bug(args):
     """This is a temporary check to enable multi-worker and multi-fiber-per-worker
     for performance benefits.
@@ -79,7 +80,7 @@ def _check_for_per_fiber_bug(args):
     isolation = args.program_isolation
     fibers_per_worker = args.fibers_per_worker
 
-    if isolation == ProgramIsolation.PER_FIBER and fibers_per_worker > 1:
+    if isolation == ProgramIsolation.PER_FIBER.name.lower() and fibers_per_worker > 1:
         raise NotImplementedError(
             "Per fiber isolation does not currently support multiple fibers per worker. "
             "Please set `--fibers_per_worker` to 1.\n"
