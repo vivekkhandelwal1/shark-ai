@@ -28,7 +28,6 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         input_token_ids: list[int],
         rid=None,
         decode_bs: int | None = None,
-        stream: bool = False,
     ):
         super().__init__()
         self.phase = phase
