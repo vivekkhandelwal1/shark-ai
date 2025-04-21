@@ -89,6 +89,7 @@ class GenerateItemProcess(sf.Process):
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
+            decode_bs=self.decode_config.max_decode_batch_size,
         )
         exec_req._cache = self.client.prefill_batcher.page_cache
         try:
@@ -142,15 +143,16 @@ class ClientGenerateBatchProcess(sf.Process):
         responder: FastAPIResponder,
         fiber: sf.Fiber | None = None,
     ):
-        super().__init__(fiber=service.fiber_pool.fibers[0] if fiber is None else fiber)
-        self.service = service
+        super().__init__(
+            fiber=service.fiber_pool.fibers[0].fiber if fiber is None else fiber
+        )
         self.gen_req = gen_req
         self.responder = responder
         self.tokenizer = service.tokenizer
         self.prefill_batcher = service.prefill_batcher
         self.decode_batcher = service.decode_batcher
         self.complete_infeed = self.system.create_queue()
-
+        self.service = service
         self.decode_config = service.server_params.decode_config
 
     async def run(self):
@@ -187,7 +189,6 @@ class ClientGenerateBatchProcess(sf.Process):
                 input_batch = [input_ids] if self.gen_req.is_single else input_ids
             else:
                 input_batch = self.tokenize()
-
             for index, input_tokens in enumerate(input_batch):
                 decode_config = copy(self.decode_config)
                 decode_config.update_from_sampling_params(
@@ -211,7 +212,6 @@ class ClientGenerateBatchProcess(sf.Process):
 
             await asyncio.gather(*gen_processes)
             self.generate_response(gen_processes, streaming)
-
         finally:
             # Remove request from queue when done
             self.service.remove_from_queue()
