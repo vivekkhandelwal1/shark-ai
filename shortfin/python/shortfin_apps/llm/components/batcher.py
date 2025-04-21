@@ -599,6 +599,15 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         # int_dtype = sfnp.int64
         bo = self.meta_request.bo.arrs
 
+        # Reallocate if block_count > seq_block_ids block_count
+        if block_count > bo["decode_seq_block_ids"].shape[-1]:
+            bo["decode_seq_block_ids"] = sfnp.device_array.for_device(
+                device0,
+                [*bo["decode_seq_block_ids"].shape[:-1], block_count],
+                sfnp.int64,
+            )
+            bo["decode_seq_block_ids_host"] = bo["decode_seq_block_ids"].for_transfer()
+
         tokens = bo["decode_tokens"]
         assert tokens is not None
         seq_lens = bo["decode_seq_lens"]
