@@ -1,11 +1,12 @@
+import asyncio
+import logging
 import math
+import numpy as np
 import os
 import re
-import urllib
-import logging
-import asyncio
 import struct
 import threading
+import urllib
 
 from iree.build.executor import FileNamespace, BuildAction, BuildContext, BuildFile
 from pathlib import Path
@@ -198,6 +199,44 @@ def convert_list_to_device_array(
         m.items = values
 
     return values_sf
+
+
+def check_host_array(host_array: sfnp.device_array):
+    """Check if the host array has been populated with data.
+
+    This is used to ensure that data has finished transferring from device to host,
+    without having to perform a device synchronization.
+
+    This is a `hack` until we enable being able to wait on `hip_streams`.
+
+    Args:
+        host_array (sfnp.device_array): Host device_array being copied to.
+
+    Raises:
+        ValueError: No specified dtype conversion from shortfin to numpy.
+    """
+    dtype_map = {
+        str(sfnp.float16): np.float16,
+        str(sfnp.float32): np.float32,
+    }
+
+    waiting = True
+    while waiting:
+        array = host_array.items
+        host_dtype = str(host_array.dtype)
+        if str(host_dtype) not in dtype_map:
+            raise ValueError(
+                f"No dtype conversion from shortfin to numpy for: {host_array.dtype}"
+            )
+
+        dtype = dtype_map[host_dtype]
+        arr = np.frombuffer(array, dtype=dtype)
+        if not np.all(arr == 0):
+            check_1 = arr
+            check_2 = np.frombuffer(array, dtype=dtype)
+            if np.array_equal(check_1, check_2):
+                break
+    return
 
 
 dtype_to_filetag = {
