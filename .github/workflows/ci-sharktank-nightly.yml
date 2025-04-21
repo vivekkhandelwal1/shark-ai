@@ -136,7 +136,7 @@ jobs:
             -s \
             sharktank/tests/evaluate/perplexity_iree_test.py \
             --run-nightly-llama-tests \
-            --bs=128 \
+            --bs=100 \
             --iree-device=hip://0 \
             --iree-hip-target=gfx942 \
             --iree-hal-target-device=hip \
