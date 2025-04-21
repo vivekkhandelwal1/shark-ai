@@ -16,7 +16,7 @@ import shortfin.array as sfnp
 
 from shortfin import Fiber
 
-from ...utils import BatcherProcess
+from ...utils import BatcherProcess, check_host_array
 
 from .config_struct import ModelParams
 from .kvcache.base_attention_cache import (
@@ -472,7 +472,7 @@ class PrefillExecutorProcess(LlmExecutorProcess):
             if req.return_host_array:
                 req.result_logits = logits_item.for_transfer()
                 req.result_logits.copy_from(logits_item)
-                await device0
+                check_host_array(req.result_logits)
             else:
                 req.result_logits = logits_item
             req.done.set_success()
@@ -583,19 +583,13 @@ class DecodeExecutorProcess(LlmExecutorProcess):
 
     async def get_results(self, logits, req_count, device0):
         # Return results.
+        logit_items = logits.view(slice(0, req_count), 0)
+        result_logits = logit_items.for_transfer()
+        result_logits.copy_from(logit_items)
+        check_host_array(result_logits)
         for i in range(req_count):
             req = self.exec_requests[i]
-            sl = 1
-            if req.return_all_logits:
-                logits_item = logits.view(i, slice(0, sl))
-            else:
-                logits_item = logits.view(i, sl - 1)
-            if req.return_host_array:
-                req.result_logits = logits_item.for_transfer()
-                req.result_logits.copy_from(logits_item)
-                await device0
-            else:
-                req.result_logits = logits_item
+            req.result_logits = result_logits.view(i)
             req.done.set_success()
 
         if self.program_isolation == sf.ProgramIsolation.PER_FIBER:
