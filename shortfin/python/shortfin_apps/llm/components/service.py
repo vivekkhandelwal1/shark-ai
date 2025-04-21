@@ -23,7 +23,6 @@ from .tokenizer import Tokenizer
 from .token_selection_strategy import get_strategy_from_str, is_ref_counted
 
 from ...utils import GenerateService
-from multiprocessing import Queue
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +57,9 @@ class LlmGenerateService(GenerateService):
         self.initialize_worker_and_fiber()
         self.initialize_queues()
         self.initialize_page_cache()
-    
+
     def initialize_queues(self):
         """Initialize request and response queues"""
-        self.request_queue = self.sysman.ls.create_queue(f"{self.name}-request-queue")
-        self.response_queue = self.sysman.ls.create_queue(f"{self.name}-response-queue")
         if self.model_params.decode_batch_sizes:
             self.max_queue_size = max(self.model_params.decode_batch_sizes) + 2
             print(f"Max queue size: {self.max_queue_size}")
@@ -80,7 +77,7 @@ class LlmGenerateService(GenerateService):
             self.current_queue_size -= 1
 
     def initialize_worker_and_fiber(self):
-        
+
         self.main_worker = self.sysman.ls.create_worker(f"{self.name}-inference")
         self.main_fiber = self.sysman.ls.create_fiber(self.main_worker)
         self.prefill_fiber = self.sysman.ls.create_fiber(self.main_worker)
