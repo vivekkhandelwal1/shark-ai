@@ -359,7 +359,7 @@ def main(argv, log_config=UVICORN_LOG_CONFIG):
         )
 
     elif (needed or args.force_update) and not sharktank_installed:
-        raise FileNotFoundError(str(needed.values()))
+        raise FileNotFoundError(str(needed))
 
     configure_service(
         args,
