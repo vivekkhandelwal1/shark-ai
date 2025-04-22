@@ -616,6 +616,9 @@ class DecodeExecutorProcess(LlmExecutorProcess):
         assert start_positions is not None
         seq_block_ids = bo["decode_seq_block_ids"]
 
+        decode_logits = bo["decode_logits"]
+        decode_logits_host = bo["decode_logits_host"]
+
         tokens_host = bo.get("decode_tokens_host")
         assert tokens_host is not None
         seq_lens_host = bo.get("decode_seq_lens_host")
@@ -632,6 +635,11 @@ class DecodeExecutorProcess(LlmExecutorProcess):
                 if i < req_count:
                     vals = vals + self.exec_requests[i].input_token_ids[-1:]
             m.items = vals
+
+        with decode_logits_host.map(discard=True) as m:
+            m.fill(0)
+
+        decode_logits_host.copy_to(decode_logits)
 
         # For decode, populate start_positions and seq_lens.
         with start_positions_host.map(discard=True) as m:
