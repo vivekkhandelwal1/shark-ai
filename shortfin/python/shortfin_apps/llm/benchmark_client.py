@@ -342,49 +342,24 @@ async def continuous_load_test(
     request_times = []
     num_requests = 0
 
-    # Exponential backoff parameters
-    max_retries = 5
-    base_delay = 0.1  # 100ms initial delay
-    max_delay = 10.0  # Maximum delay of 10 seconds
-
     while time.perf_counter() < end_time:
-        retry_count = 0
-        delay = base_delay
-
-        while retry_count < max_retries:
-            try:
-                request_start = time.perf_counter()
-                await client.generate(
-                    text=prompt,
-                    sampling_params={
-                        "max_completion_tokens": output_token_length,
-                        "token_selection_strategy": token_selection_strategy,
-                        "num_beams": 8,
-                    },
-                    save_output=False,
-                )
-                request_end = time.perf_counter()
-                request_times.append(request_end - request_start)
-                num_requests += 1
-                break  # Success, exit retry loop
-            except Exception as e:
-                retry_count += 1
-                if retry_count >= max_retries:
-                    print(f"Error in request after {max_retries} retries: {e}")
-                    break
-
-                # Calculate delay with exponential backoff and jitter
-                delay = min(
-                    max_delay,
-                    base_delay * (2 ** (retry_count - 1)) * (1 + np.random.random()),
-                )
-                print(
-                    f"Request failed: {e}. Retrying in {delay:.2f} seconds (attempt {retry_count}/{max_retries})"
-                )
-                await asyncio.sleep(delay)
-
-        # Small delay between successful requests to prevent overwhelming the server
-        await asyncio.sleep(0.01)
+        try:
+            request_start = time.perf_counter()
+            await client.generate(
+                text=prompt,
+                sampling_params={
+                    "max_completion_tokens": output_token_length,
+                    "token_selection_strategy": token_selection_strategy,
+                    "num_beams": 8,
+                },
+                save_output=False,
+            )
+            request_end = time.perf_counter()
+            request_times.append(request_end - request_start)
+            num_requests += 1
+        except Exception as e:
+            print(f"Error in request: {e}")
+            continue
 
     actual_duration = time.perf_counter() - start_time
     return {
@@ -504,7 +479,7 @@ async def run_all_benchmarks(
                     print(
                         f"Reached target latency of {target_latency}s with {current_requests} concurrent requests"
                     )
-                    optimal_requests = current_requests - 1
+                    optimal_requests = current_requests
                     print(f"Optimal number of concurrent requests: {optimal_requests}")
                     break
 
