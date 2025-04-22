@@ -52,7 +52,7 @@ class LlmGenerateService(GenerateService):
         tokenizer: Tokenizer,
         model_params: ModelParams,
         server_params: "ServerParams",
-        program_isolation: str = "per_call",
+        program_isolation: str = "per_fiber",
         max_queue_size: int = 3,  # Maximum number of requests in queue
     ):
         super().__init__(sysman)
