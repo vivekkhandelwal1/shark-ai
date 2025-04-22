@@ -41,7 +41,7 @@ class SdxlPipeline(BaseLayer):
             self.device = torch.get_default_device()
         self.dtype = dtype
         if not default_num_inference_steps:
-                self.default_num_inference_steps = 20
+            self.default_num_inference_steps = 20
 
         if clip_tokenizer_path:
             self.clip_tokenizer = CLIPTokenizer.from_pretrained(base_model_name)
@@ -56,9 +56,7 @@ class SdxlPipeline(BaseLayer):
         self.clip_model.to(device)
 
         # Load SDXL Unet
-        self.unet_model = Unet2DConditionModel.from_irpa(
-            unet_dataset
-        )
+        self.unet_model = Unet2DConditionModel.from_irpa(unet_dataset)
         self.add_module("unet_model", self.unet_model)
         self.unet_model.to(device)
 
@@ -206,17 +204,12 @@ class SdxlPipeline(BaseLayer):
     ) -> Tensor:
         """Denoise the latents through the diffusion process."""
         img, t_ids, timesteps, sigmas = self.scheduler.initialize(img, num_steps)
-        
+
         for step in range(timesteps):
-            latents, t, sigma, next_sigma = self.scheduler.scale_model_input(img, step, timesteps, sigmas)
-            noise_pred = self.unet_model(
-                latents,
-                t,
-                pe,
-                te,
-                t_ids,
-                guidance
+            latents, t, sigma, next_sigma = self.scheduler.scale_model_input(
+                img, step, timesteps, sigmas
             )
+            noise_pred = self.unet_model(latents, t, pe, te, t_ids, guidance)
             img = self.scheduler.step(noise_pred, img, sigma, next_sigma)
 
         return img
