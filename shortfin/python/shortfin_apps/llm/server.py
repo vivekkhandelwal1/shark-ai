@@ -65,6 +65,9 @@ def parse_args(argv):
     parser.add_argument(
         "--timeout-keep-alive", type=int, default=5, help="Keep alive timeout"
     )
+    parser.add_argument(
+        "--instances", type=int, default=1, help="Number of shortfin instances to run"
+    )
     return parser.parse_args(argv)
 
 

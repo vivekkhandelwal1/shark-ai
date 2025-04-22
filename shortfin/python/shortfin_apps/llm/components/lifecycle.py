@@ -78,18 +78,26 @@ class ShortfinLlmLifecycleManager:
         tokenizer = Tokenizer.from_tokenizer_json_file(
             args.tokenizer_json, eos_token=eos_token
         )
-        service = LlmGenerateService(
-            name="default",
-            sysman=sysman,
-            tokenizer=tokenizer,
-            model_params=model_params,
-            server_params=server_params,
-            program_isolation=server_params.program_isolation,
-        )
-        service.load_inference_module(args.vmfb)
-        service.load_inference_parameters(*args.parameters, parameter_scope="model")
+        print(f"Creating {server_params.instances} instances")
+        # Create a list of LLM instances
+        services = {}
+        for i in range(server_params.instances):
+            service = LlmGenerateService(
+                name=f"instance{i}",
+                sysman=sysman,
+                tokenizer=tokenizer,
+                model_params=model_params,
+                server_params=server_params,
+                program_isolation=server_params.program_isolation,
+            )
+            service.load_inference_module(args.vmfb)
+            service.load_inference_parameters(*args.parameters, parameter_scope="model")
+            services[i] = service
+
         self.sysman = sysman
-        self.services = {"default": service}
+        self.services = services
+        self.request_counter = 0
+        self.current_instance = 0
 
     def __enter__(self):
         self.sysman.start()
@@ -120,4 +128,6 @@ class ShortfinLlmLifecycleManager:
         """
         with self:
             app.state.services = self.services
+            app.state.request_counter = self.request_counter
+            app.state.current_instance = self.current_instance
             yield
