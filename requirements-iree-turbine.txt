@@ -1,0 +1,5 @@
+# Pinned versions of IREE dependencies.
+
+# Keep these versions synced with SHORTFIN_IREE_GIT_TAG in shortfin/CMakeLists.txt
+--find-links https://iree.dev/pip-release-links.html
+iree-turbine==3.4.0rc20250416

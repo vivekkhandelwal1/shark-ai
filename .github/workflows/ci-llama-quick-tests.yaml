@@ -8,6 +8,10 @@ name: Llama Benchmarking 8B Tests
 
 on:
   workflow_dispatch:
+    inputs:
+      iree-run-id:
+        description: 'IREE Run ID'
+        required: true
   pull_request:
   push:
     branches:
@@ -41,6 +45,14 @@ jobs:
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux_x86_64_release_packages
+          github-token: ${{ github.token }} # token with actions:read permissions on target repo
+          repository: iree-org/iree
+          path: ./
+          run-id: ${{ github.event.inputs.iree-run-id }}
+
       - name: "Setting up Python"
         id: setup_python
         uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
@@ -57,7 +69,8 @@ jobs:
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install -r requirements-iree-pinned.txt
+          pip install --force-reinstall *.whl
+          pip install -r requirements-iree-turbine.txt
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
             -e sharktank/
