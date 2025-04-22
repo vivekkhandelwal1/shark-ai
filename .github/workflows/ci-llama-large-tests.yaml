@@ -8,6 +8,10 @@ name: Llama Benchmarking Tests
 
 on:
   workflow_dispatch:
+    inputs:
+      iree-run-id:
+        description: 'IREE Run ID'
+        required: true
   schedule:
     # Weekdays at 11:00 AM UTC = 03:00 AM PST / 04:00 AM PDT
     - cron: "0 11 * * 0-6"
@@ -42,6 +46,14 @@ jobs:
         id: date
         run: echo "::set-output name=date::$(date +'%Y-%m-%d')"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux_x86_64_release_packages
+          github-token: ${{ github.token }} # token with actions:read permissions on target repo
+          repository: iree-org/iree
+          path: ./
+          run-id: ${{ github.event.inputs.iree-run-id }}
+
       - name: "Setting up Python"
         id: setup_python
         uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
@@ -58,7 +70,8 @@ jobs:
           # Note: We install in three steps in order to satisfy requirements
           # from non default locations first.
           pip install --no-compile -r pytorch-cpu-requirements.txt
-          pip install -r requirements-iree-unpinned.txt
+          pip install --force-reinstall *.whl
+          pip install -r requirements-iree-turbine.txt
           pip install --no-compile \
             -r sharktank/requirements-tests.txt \
             -e sharktank/
@@ -74,14 +87,6 @@ jobs:
             --iree-hip-target=gfx942 \
             --iree-device=hip://0 \
             --html=out/llm/llama/benchmark/index.html
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
-        with:
-          github_token: ${{ secrets.SHARK_PLATFORM_GH_TOKEN }}
-          publish_dir: ./out/llm/llama/benchmark
-          destination_dir: ./llm/llama/benchmark
-          keep_files: true
 
       - name: Upload llama executable files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
