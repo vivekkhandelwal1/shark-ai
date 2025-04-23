@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import random
 from typing import List
 
+import numpy as np
 import shortfin.array as sfnp
 
 from shortfin_apps.utils import convert_int_to_float
@@ -71,6 +72,5 @@ class Sampler:
         Returns:
             int: Max token.
         """
-        token = sfnp.argmax(logits)
-        token_int = token.items[0]
+        token_int = np.argmax(np.frombuffer(logits.items, dtype=np.float16))
         return token_int
