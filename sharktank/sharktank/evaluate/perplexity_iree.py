@@ -271,16 +271,18 @@ class PerplexityIree:
             out_logits = torch.cat(self.out_logits, dim=1)
 
             pad_logits_shape = self.token_ids.shape[1] - out_logits.shape[1]
+            pad_logits = torch.zeros(
+                out_logits.shape[0], pad_logits_shape, out_logits.shape[2]
 
-        if self.out_logits.dtype == torch.float8_e4m3fnuz:
-            out_logits_as_int8 = self.out_logits.view(dtype=torch.int8)
-            self.out_logits = torch.cat((out_logits_as_int8, self.pad_logits), 1).to(
-                self.torch_device
+
             )
-        else:
-            self.out_logits = torch.cat((self.out_logits, self.pad_logits), 1).to(
-                self.torch_device
-            )
+
+            out_logits = torch.cat((out_logits, pad_logits), 1).to(self.torch_device)
+
+            return out_logits
+
+        return with_iree_device_context(run_iree_module, [self.runner.config.device])
+    
     @timeit
     def compute_perplexity(self):
         from torch.nn import CrossEntropyLoss
