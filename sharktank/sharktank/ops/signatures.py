@@ -746,6 +746,7 @@ def _mean_trampoline(
     tensors = (x,)
     for override in d.find_overrides(tensors):
         result = override(x, dim, keepdim, dtype=dtype)
+        # print('ops', result, override, type(x))
         if result is not NotImplemented:
             return override, result
     else:

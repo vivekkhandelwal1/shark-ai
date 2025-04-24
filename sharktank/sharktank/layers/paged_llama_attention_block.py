@@ -84,10 +84,10 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.add_module(
                 "kv_norm", RMSNormLayer(theta("attn_kv_a_norm"), epsilon=rms_epsilon)
             )
-            self.wq = None
             if "wq" in theta:
                 self.wq = LinearLayer(theta("q"))
             else:
+                self.wq = None
                 self.wq_a = LinearLayer(theta("attn_q_a"))
                 self.wq_b = LinearLayer(theta("attn_q_b"))
                 self.q_norm = RMSNormLayer(theta("attn_q_a_norm"), epsilon=rms_epsilon)
@@ -160,12 +160,9 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                     xt=k_rope.unsqueeze(2), mask=embedding_batch_mask
                 )
 
-            # start_index = 0
-            # q_rope = embedding(xt=q_rope, start_index=start_index)
-            # k_rope = embedding(xt=k_rope.unsqueeze(2), start_index=start_index)
             xq = ops.cat((q_nope, q_rope), dim=-1)
 
-            ## We should restructure this to apply the wkv_b post attention.
+            ##TODO: Restructure this to apply the wkv_b post attention instead of here
             kv_norm = self.kv_norm(kv_nope)
             wkv_b = self.wkv_b(kv_norm).unflatten(2, (self.head_count, -1))
 

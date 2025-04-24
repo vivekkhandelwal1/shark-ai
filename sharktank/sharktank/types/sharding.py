@@ -129,6 +129,52 @@ class FFNSharding(ThetaLayerSharding):
         )
 
 
+class RoutedExpertsSharding(ThetaLayerSharding):
+    def __init__(self, shard_count: int):
+        super().__init__()
+        self.shard_count = shard_count
+
+    def theta_sharding(self) -> ThetaSharding:
+        return ThetaSharding(
+            {
+                "ffn_gate_inp": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "ffn_gate_exps": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "ffn_up_exps": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "ffn_down_exps": LinearSplitReductionDimSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "exp_probs_b": Ignore(),
+            }
+        )
+
+
+class SharedExpertsSharding(ThetaLayerSharding):
+    def __init__(self, shard_count: int):
+        super().__init__()
+        self.shard_count = shard_count
+
+    def theta_sharding(self) -> ThetaSharding:
+        return ThetaSharding(
+            {
+                "ffn_gate_shexp": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "ffn_up_shexp": LinearSplitParallelWeightAndBiasSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+                "ffn_down_shexp": LinearSplitReductionDimSharding(
+                    shard_count=self.shard_count
+                ).theta_sharding(),
+            }
+        )
+
+
 class GroupNormSplitChannelSharding(ThetaLayerSharding):
     def __init__(self, shard_count: int):
         super().__init__()

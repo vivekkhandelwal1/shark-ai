@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-from sharktank.models.deepseek.deepseek import PagedLatentAttentionBlock
+from sharktank.layers.paged_llama_attention_block import PagedLlamaAttentionBlock
 from sharktank.layers.rotary_embedding import RotaryEmbeddingLayer
 from sharktank.models.deepseek.sharding import (
     flat_to_nested_dict,
@@ -40,7 +40,7 @@ def test_deepseek():
     sharded_theta = shard_theta(theta, spec)
 
     hp = config.hp
-    reference_model = PagedLatentAttentionBlock(
+    reference_model = PagedLlamaAttentionBlock(
         theta=theta,
         block_index=0,
         cache=None,
@@ -49,9 +49,11 @@ def test_deepseek():
         head_count_kv=hp.attention_head_count_kv,
         rms_epsilon=hp.attention_layer_norm_rms_epsilon,
         rope_dimension_count=hp.rope_dimension_count,
+        v_head_dim=hp.v_head_dim,
+        model_arch=hp.model_arch,
     )
 
-    sharded_model = PagedLatentAttentionBlock(
+    sharded_model = PagedLlamaAttentionBlock(
         theta=sharded_theta,
         block_index=0,
         cache=None,
@@ -60,6 +62,8 @@ def test_deepseek():
         head_count_kv=hp.attention_head_count_kv,
         rms_epsilon=hp.attention_layer_norm_rms_epsilon,
         rope_dimension_count=hp.rope_dimension_count,
+        v_head_dim=hp.v_head_dim,
+        model_arch=hp.model_arch,
     )
 
     bs = 1

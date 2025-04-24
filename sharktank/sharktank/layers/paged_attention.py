@@ -361,7 +361,7 @@ class PagedAttention:
         mask: Optional[torch.Tensor] = None,
         probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
-        print(q.sum(), k.sum(), v.sum())
+        # print(q.sum(), k.sum(), v.sum())
         if self.attn_type == "gqa":
             k, v = self.gqa(head_count_attn, k, v)
 

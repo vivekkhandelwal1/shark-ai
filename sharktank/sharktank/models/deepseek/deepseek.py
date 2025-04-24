@@ -70,7 +70,7 @@ class PagedDeepseekModelV1(BaseCausalLMModel):
         self.add_module("output_lm_head", LinearLayer(theta("output")))
         # hp.block_count = 1
         blk_range = range(0, hp.block_count)
-        blk_range = [3]
+        # blk_range = [3]
         self.attn_blocks = nn.ModuleList(
             [
                 AttentionFFNBlock(
@@ -218,6 +218,11 @@ class AttentionFFNBlock(ThetaLayer):
             ),
         )
 
+        # Add FFN norm
+        self.ffn_norm = torch.nn.Identity()
+        if theta.optional_tensor("ffn_norm") is not None:
+            self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
+
         func_map = {
             "llama": (F.softmax, False),
             "grok": (F.softmax, False),
@@ -239,14 +244,13 @@ class AttentionFFNBlock(ThetaLayer):
                     expert_used_count=expert_used_count,
                     n_expert_groups=n_expert_groups,
                     n_limited_groups=n_limited_groups,
-                    add_residual=False,
                     route_scale=route_scale,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                 ),
             )
         else:
-            self.add_module("ffn", FFN(theta=theta, rms_epsilon=rms_epsilon))
+            self.add_module("ffn", FFN(theta=theta))
 
     def forward(
         self,
@@ -272,6 +276,6 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        final_output = self.ffn(h)
+        final_output = h + self.ffn(self.ffn_norm(h))
 
         return final_output

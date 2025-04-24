@@ -258,12 +258,12 @@ class Batch:
         # print("prefill.seq_block_ids", seq_block_ids_tensor)
         # print("prefill.attention_mask", attention_mask)
 
-        print(
-            "prefill cache 1: ",
-            self.cache_state[0].nelement(),
-            self.cache_state[0].nelement()
-            - torch.count_nonzero(self.cache_state[0]).item(),
-        )
+        # print(
+        #     "prefill cache 1: ",
+        #     self.cache_state[0].nelement(),
+        #     self.cache_state[0].nelement()
+        #     - torch.count_nonzero(self.cache_state[0]).item(),
+        # )
 
         logits = model.prefill(
             token_ids,
@@ -272,12 +272,12 @@ class Batch:
             cache_state=self.cache_state,
         )
 
-        print(
-            "prefill cache 2: ",
-            self.cache_state[0].nelement(),
-            self.cache_state[0].nelement()
-            - torch.count_nonzero(self.cache_state[0]).item(),
-        )
+        # print(
+        #     "prefill cache 2: ",
+        #     self.cache_state[0].nelement(),
+        #     self.cache_state[0].nelement()
+        #     - torch.count_nonzero(self.cache_state[0]).item(),
+        # )
 
         logits = unshard(logits)
 
@@ -358,12 +358,12 @@ class Batch:
             cache_state=self.cache_state,
         )
 
-        print(
-            "decode cache 2: ",
-            self.cache_state[0].nelement(),
-            self.cache_state[0].nelement()
-            - torch.count_nonzero(self.cache_state[0]).item(),
-        )
+        # print(
+        #     "decode cache 2: ",
+        #     self.cache_state[0].nelement(),
+        #     self.cache_state[0].nelement()
+        #     - torch.count_nonzero(self.cache_state[0]).item(),
+        # )
 
         logits = unshard(logits)
         trace_tensor("decode.logits", logits)
@@ -455,6 +455,8 @@ def main():
 
     print("config", config)
 
+    if config.hp.model_arch == "deepseek2":
+        from sharktank.models.deepseek.sharding import shard_theta
     if config.tensor_parallelism_size > 1:
         dataset.root_theta = shard_theta(dataset.root_theta, config)
 

@@ -242,6 +242,12 @@ class AttentionFFNBlock(ThetaLayer):
         fake_quant: bool = True,
     ):
         super().__init__(theta)
+
+        # Add FFN norm
+        self.ffn_norm = torch.nn.Identity()
+        if theta.optional_tensor("ffn_norm") is not None:
+            self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
+
         self.add_module(
             "attn",
             PagedLlamaAttentionBlock(
@@ -262,7 +268,6 @@ class AttentionFFNBlock(ThetaLayer):
             "ffn",
             FFN(
                 theta=theta,
-                rms_epsilon=rms_epsilon,
                 fake_quant=fake_quant,
             ),
         )
@@ -292,6 +297,6 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        final_output = self.ffn(h)
+        final_output = h + self.ffn(self.ffn_norm(h))
 
         return final_output

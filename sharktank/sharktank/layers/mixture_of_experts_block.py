@@ -39,7 +39,6 @@ class MoeBlock(ThetaLayer):
         *,
         score_experts=softmax,
         normalize_experts=True,
-        add_residual=True,
         expert_count: Optional[int] = None,
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
@@ -52,10 +51,8 @@ class MoeBlock(ThetaLayer):
         self.n_limited_groups = n_limited_groups
         self.score_experts = score_experts
         self.normalize_experts = normalize_experts
-        self.add_residual = add_residual
         self.route_scale = route_scale
         self.ffn_gate_inp = torch.nn.Identity()
-        self.ffn_norm = torch.nn.Identity()
         self.layer_output_norm = torch.nn.Identity()
         self.shared_experts = None
 
@@ -63,14 +60,8 @@ class MoeBlock(ThetaLayer):
         if theta.optional_tensor("ffn_gate_inp") is not None:
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
-        # Add FFN norm
-        if theta.optional_tensor("ffn_norm") is not None:
-            self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
-
         if theta.optional_tensor("ffn_gate_shexp") is not None:
-            self.shared_experts = FFN(
-                theta=theta, activation_fn=moe_activation, rms_epsilon=rms_epsilon
-            )
+            self.shared_experts = FFN(theta=theta, activation_fn=moe_activation)
 
         # Add optional FFN output norm layer
         if theta.optional_tensor("layer_output_norm") is not None:
@@ -84,9 +75,8 @@ class MoeBlock(ThetaLayer):
         self,
         h: torch.Tensor,
     ):
-        ffn_input = self.ffn_norm(h)
-        batch_size, sequence_length, feature_dim = ffn_input.shape
-        ffn_input = ffn_input.view(-1, feature_dim)
+        batch_size, sequence_length, feature_dim = h.shape
+        ffn_input = h.view(-1, feature_dim)
 
         # For each token, the router calculates the router weights for all experts
         # router_logits: (batch_size * sequence_length, expert_count)
@@ -144,7 +134,5 @@ class MoeBlock(ThetaLayer):
         moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)
 
         moe_output = self.layer_output_norm(moe_output)
-        if self.add_residual:
-            moe_output = h + moe_output
 
         return moe_output
