@@ -311,13 +311,23 @@ class AttentionFFNBlock(ThetaLayer):
                 head_count=config.hp.attention_head_count,
                 head_dim=config.hp.attn_head_dim,
                 head_count_kv=config.hp.attention_head_count_kv,
+                v_head_dim=config.hp.v_head_dim,
                 rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                rope_dimension_count=config.hp.rope_dimension_count,
                 attention_kernel=attention_kernel,
                 fake_quant=fake_quant,
                 block_to_device_lookup=block_to_device_lookup,
                 softcap=config.hp.attention_softcap,
+                model_arch=config.hp.model_arch,
             ),
         )
+
+        # Add FFN norm
+        self.ffn_norm = torch.nn.Identity()
+        if theta.optional_tensor("ffn_norm") is not None:
+            self.ffn_norm = RMSNormLayer(
+                theta("ffn_norm"), epsilon=config.hp.attention_layer_norm_rms_epsilon
+            )
 
         moe_func_map = {
             "llama": (
@@ -340,11 +350,11 @@ class AttentionFFNBlock(ThetaLayer):
             ),
         }
 
-        if config.hp.expert_count:
+        if block_index >= config.hp.n_dense_layers:
             (
                 score_experts,
                 moe_activation,
-                add_residual,
+                self.add_residual,
                 normalize_experts,
             ) = moe_func_map[config.hp.model_arch]
 
@@ -352,10 +362,13 @@ class AttentionFFNBlock(ThetaLayer):
                 "ffn",
                 MoeBlock(
                     theta=theta,
+                    expert_count=config.hp.expert_count,
                     expert_used_count=config.hp.expert_used_count,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
+                    n_expert_groups=config.hp.n_expert_groups,
+                    n_limited_groups=config.hp.n_limited_groups,
+                    route_scale=config.hp.route_scale,
                     moe_activation=moe_activation,
-                    add_residual=add_residual,
                     score_experts=score_experts,
                     normalize_experts=normalize_experts,
                 ),
@@ -365,7 +378,6 @@ class AttentionFFNBlock(ThetaLayer):
                 "ffn",
                 FFN(
                     theta=theta,
-                    rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,
                     fake_quant=fake_quant,
                 ),
             )
@@ -395,6 +407,9 @@ class AttentionFFNBlock(ThetaLayer):
         )
 
         # Feed forward network.
-        final_output = self.ffn(h)
+        final_output = self.ffn(self.ffn_norm(h))
+
+        if self.add_residual:
+            final_output += h
 
         return final_output
