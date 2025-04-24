@@ -6,8 +6,7 @@
 
 from .testing import make_random_deepseek_theta
 
-from sharktank.layers.configs import LlamaHParams
-from sharktank.models.llama.llama import LlamaModelConfig
+from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
 from sharktank.types import Dataset
 
 import argparse
@@ -52,6 +51,7 @@ def generate(seed):
             expert_count=expert_count,
             expert_used_count=used_experts,
             model_arch="deepseek2",
+            expert_score_func="sigmoid",
             route_scale=2.5,
         ),
         block_seq_stride=block_seq_stride,

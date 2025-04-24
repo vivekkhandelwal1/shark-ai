@@ -14,16 +14,14 @@ When in question, we draw from the vocabulary and normalization they have done
 (and indeed, can bootstrap these off of GGUF files).
 """
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Any, Optional
+from os import PathLike
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Optional
 import torch
 from transformers import T5Config as T5ConfigHf
 from .config import ModelConfig
-from ...utils import parse_version
-from os import PathLike
-
-from ...types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
+from sharktank.utils import parse_version
+from sharktank.types.tensors import serialized_name_to_dtype, dtype_to_serialized_name
 
 if TYPE_CHECKING:
     import transformers
@@ -244,7 +242,7 @@ class LlamaModelConfig:
     # into the context length.
     block_seq_stride: int = 32
 
-    # Either "paged" or "direct".
+    # Sharktank supports only "paged"
     kv_cache_type: str = "paged"
 
     # If None will use attention_dtype.
@@ -267,6 +265,14 @@ class LlamaModelConfig:
     # arguments.
     tensor_parallelism_size: int = 1
 
+    # How many groups of (roughly) uniform size to
+    # If greater than 1, the model will re-wrap all non-sharded tensors as sharded over 1 device.
+    pipeline_parallelism_size: int = 1
+
+    # Mapping between a transformer block and the device(s) it is on.
+    # None for no pipeline parallelism. If not none, must also account for sharding.
+    block_to_device_lookup: tuple[tuple[int, ...], ...] = None
+
     # Which attention kernel to use.
     attention_kernel: str = "torch"
 
@@ -282,6 +288,16 @@ class LlamaModelConfig:
     # be the difference of many gigabytes of static data being embedded in
     # the program and not.
     static_tables: bool = True
+
+    def __post_init__(self):
+        if not self.block_to_device_lookup:
+            assert (
+                self.pipeline_parallelism_size == 1
+            ), "Must specify block_to_device_lookup if pipeline parallelism is used"
+            self.block_to_device_lookup = tuple(
+                tuple(range(self.tensor_parallelism_size))
+                for _ in range(self.hp.block_count)
+            )
 
 
 @dataclass
@@ -387,7 +403,7 @@ class ClipTextConfig(ModelConfig):
     dtype: torch.dtype = torch.float32
 
     def __post_init__(self):
-        from ...models.clip import ClipTextModel
+        from sharktank.models.clip import ClipTextModel
 
         self.model_type = ClipTextModel
         super().__post_init__()
@@ -400,8 +416,8 @@ class ClipTextConfig(ModelConfig):
     def from_hugging_face_clip_text_model_config(
         config: "transformers.CLIPTextConfig",
     ) -> "ClipTextConfig":
-        from ...models.clip import ClipTextModel
-        from ..base import get_model_type_id
+        from sharktank.models.clip import ClipTextModel
+        from sharktank.layers.base import get_model_type_id
 
         return ClipTextConfig(
             model_type=get_model_type_id(ClipTextModel),

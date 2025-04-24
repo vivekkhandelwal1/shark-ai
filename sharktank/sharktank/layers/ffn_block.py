@@ -7,11 +7,13 @@
 from typing import Callable
 
 import torch.nn.functional as F
-from .. import ops
-from ..types import AnyTensor
+from sharktank import ops
+from sharktank.types import AnyTensor
 
 from .base import Theta, ThetaLayer
 from .linear import LinearLayer
+from .norm import RMSNormLayer
+
 
 __all__ = [
     "FFN",

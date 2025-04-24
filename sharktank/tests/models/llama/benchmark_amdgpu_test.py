@@ -19,11 +19,10 @@ from sharktank.utils.export_artifacts import (
     IreeBenchmarkException,
     IreeCompileException,
 )
-
-is_mi300x = pytest.mark.skipif("config.getoption('iree_hip_target') != 'gfx942'")
-skipif_run_quick_llama_test = pytest.mark.skipif(
-    'config.getoption("run-quick-llama-test") and not config.getoption("run-nightly-llama-tests")',
-    reason="Skipping largs tests when --run-quick-llama-test is set.",
+from sharktank.utils.testing import (
+    is_mi300x,
+    is_nightly,
+    is_pre_submit_nightly,
 )
 
 
@@ -100,7 +99,6 @@ class BaseBenchmarkTest(unittest.TestCase):
 
 
 @is_mi300x
-@pytest.mark.expensive
 class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -191,7 +189,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4xi64=@{self.prefill_args_fp8}/seq_lens.bin",
             f"--input=4x4xi64=@{self.prefill_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/cs_f8E4M3FNUZ.bin",
-            "--benchmark_repetitions=3",
+            "--benchmark_repetitions=10",
             ">>",
         ]
         self.iree_run_decode_args_fp8 = [
@@ -201,14 +199,14 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             f"--input=4xi64=@{self.decode_args_fp8}/start_positions.bin",
             f"--input=4x5xi64=@{self.decode_args_fp8}/seq_block_ids.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.decode_args_fp8}/cs_f8E4M3FNUZ.bin",
-            "--benchmark_repetitions=3",
+            "--benchmark_repetitions=10",
             ">>",
         ]
         self.iree_run_prefill_args_fp8_2048 = [
             "--function=prefill_bs4",
-            f"--input=4x128xi64=@{self.prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
+            f"--input=4x2048xi64=@{self.prefill_args_fp8}/2048/prefill_token_ids_4x2048xi64.bin",
             f"--input=4xi64=@{self.prefill_args_fp8}/2048/prefill_seq_lens_4xi64.bin",
-            f"--input=4x4xi64=@{self.prefill_args_fp8}/2048/prefill_seq_block_ids_4x64xi64.bin",
+            f"--input=4x64xi64=@{self.prefill_args_fp8}/2048/prefill_seq_block_ids_4x64xi64.bin",
             f"--input=261x2097152xf8E4M3FNUZ=@{self.prefill_args_fp8}/2048/prefill_cache_state_261x2097152xf8E4M3FNUZ.bin",
             "--benchmark_repetitions=10",
             ">>",
@@ -224,10 +222,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             ">>",
         ]
 
-    @skipif_run_quick_llama_test
-    @pytest.mark.xfail(
-        reason="Iree Compile Error", strict=True, raises=IreeCompileException
-    )
+    @is_pre_submit_nightly
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "f16_torch_128_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -243,12 +238,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -272,10 +267,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
-    @pytest.mark.xfail(
-        reason="Iree Compile Error", strict=True, raises=IreeCompileException
-    )
+    @is_nightly
     def testBenchmark8B_f16_TP1_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "f16_torch_2048_tp1"
         output_mlir = self.llama8b_f16_torch_sdpa_artifacts.create_file(
@@ -291,12 +283,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -320,8 +312,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
-    @pytest.mark.xfail(reason="Benchmarking Error", raises=IreeBenchmarkException)
+    @is_nightly
     def testBenchmark8B_fp8_TP1_Non_Decomposed(self):
         output_file_name = self.dir_path_8b / "fp8_torch_tp1"
         output_mlir = self.llama8b_fp8_torch_sdpa_artifacts.create_file(
@@ -337,12 +328,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_fp8_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_fp8_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -366,7 +357,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_8b / "fp8_attnf8_2048_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
@@ -382,12 +373,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_fp8_attnf8_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -411,7 +402,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             cwd=self.repo_root,
         )
 
-    @skipif_run_quick_llama_test
+    @is_nightly
     def testBenchmark8B_fp8_attnf8_TP1_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_8b / "fp8_attnf8_128_tp1"
         output_mlir = self.llama8b_fp8_attnf8_sdpa_artifacts.create_file(
@@ -427,12 +418,12 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama8b_fp8_attnf8_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama8b_fp8_attnf8_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -458,8 +449,7 @@ class BenchmarkLlama3_1_8B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@pytest.mark.expensive
-@skipif_run_quick_llama_test
+@is_nightly
 class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -597,12 +587,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp1.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -641,12 +631,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             suffix=".txt", prefix=output_file_name
         )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp1.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp1.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -671,7 +661,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20581",
+        raises=IreeCompileException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_128(self):
         output_file_name = self.dir_path_70b / "f16_torch_128_tp8"
@@ -693,12 +685,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
                 output_shard_file_name
             )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -721,7 +713,9 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
         )
 
     @pytest.mark.xfail(
-        reason="Benchmarking Error", strict=True, raises=IreeBenchmarkException
+        run=False,
+        reason="https://github.com/iree-org/iree/issues/20581",
+        raises=IreeCompileException,
     )
     def testBenchmark70B_f16_TP8_Non_Decomposed_Input_Len_2048(self):
         output_file_name = self.dir_path_70b / "f16_torch_2048_tp8"
@@ -743,12 +737,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
                 output_shard_file_name
             )
         export_return_code = self.llama70b_f16_torch_sdpa_artifacts_tp8.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_f16_torch_sdpa_artifacts_tp8.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -785,12 +779,12 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
             suffix=".vmfb", prefix=output_file_name
         )
         export_return_code = self.llama70b_fp8_torch_sdpa_artifacts_tp1.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama70b_fp8_torch_sdpa_artifacts_tp1.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -814,8 +808,7 @@ class BenchmarkLlama3_1_70B(BaseBenchmarkTest):
 
 
 @is_mi300x
-@pytest.mark.expensive
-@skipif_run_quick_llama_test
+@is_nightly
 class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
     def setUp(self):
         super().setUp()
@@ -924,12 +917,12 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         if output_shard_file_name.exists():
             self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama405b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -965,12 +958,12 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         if output_shard_file_name.exists():
             self.llama405b_f16_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_f16_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama405b_f16_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,
@@ -1006,12 +999,12 @@ class BenchmarkLlama3_1_405B(BaseBenchmarkTest):
         if output_shard_file_name.exists():
             self.llama405b_fp8_torch_sdpa_artifacts.irpa_path = output_shard_file_name
         export_return_code = self.llama405b_fp8_torch_sdpa_artifacts.export_to_mlir(
-            mlir_path=output_mlir,
-            json_path=output_json,
+            output_mlir=output_mlir,
+            output_config=output_json,
         )
         self.llama405b_fp8_torch_sdpa_artifacts.compile_to_vmfb(
-            mlir_path=str(output_mlir),
-            vmfb_path=output_vmfb,
+            output_mlir=str(output_mlir),
+            output_vmfb=output_vmfb,
             hal_dump_path=output_file_name,
             cwd=self.repo_root,
             args=self.compile_args,

@@ -13,10 +13,10 @@ form.
 from sharktank.models.llama.sharding import shard_theta
 from sharktank.layers import LlamaHParams, LlamaModelConfig
 from sharktank.types import *
+from sharktank.utils import cli
 
 
 def main(raw_args=None):
-    from ...utils import cli
 
     parser = cli.create_parser()
     cli.add_input_dataset_options(parser)
