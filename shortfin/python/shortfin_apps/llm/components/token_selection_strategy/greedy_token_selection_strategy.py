@@ -106,6 +106,8 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
             await exec_req.done
             token_int = beam.sample_logits()
             beam.last_token = token_int
+            logger.info(f"greedy beam token: {token_int}")
+            logger.info(f"callback: {config.results_callback}")
             config.results_callback(token_int)
             if token_int == config.eos_token_id:
                 break

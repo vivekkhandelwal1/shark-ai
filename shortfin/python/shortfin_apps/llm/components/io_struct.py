@@ -31,6 +31,8 @@ MIN_TOP_P = 0.01
 class SamplingParams:
     # Number of parallel samples
     n: int = 1
+    # Number of beams to use for beam search or multi-greedy token selection
+    b_of_n: int = 1
     # Max tokens to generate during decode loop
     max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS
     # Temperature to use during generation
@@ -94,6 +96,9 @@ class GenerateReqInput:
             else:
                 is_single = isinstance(self.input_ids[0], int)
         self.is_single = is_single
+
+        if self.sampling_params.b_of_n < self.sampling_params.n:
+            raise ValueError("b_of_n should be less than or equal to n.")
 
         if is_single:
             if self.rid is None:

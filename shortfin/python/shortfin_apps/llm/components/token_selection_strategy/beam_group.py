@@ -9,7 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 from asyncio import gather
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Set
+from typing import Callable, Dict, List, Set, Union
 from uuid import uuid4
 
 import shortfin as sf
@@ -207,7 +207,7 @@ class BeamGroup:
         done_signals = [beam.exec_req.done for beam in self.active_beams]
         return await gather(*done_signals)
 
-    def process_beams(self):
+    def process_beams(self, results_callback: Callable[[Union[int, List[int]]], None]):
         beam_selections = self.selection_callback(
             self.active_beams, self.completed_beams
         )
@@ -233,6 +233,7 @@ class BeamGroup:
             else:
                 active_beams.append(beam)
                 active_reqs.add(new_req)
+            results_callback(token)
 
         for beam in completed_beams + active_beams:
             beam.update_exec_req()
