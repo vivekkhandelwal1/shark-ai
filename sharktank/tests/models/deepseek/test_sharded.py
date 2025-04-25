@@ -5,6 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import unittest
+from copy import deepcopy
+
 import torch
 
 from sharktank.layers.paged_llama_attention_block import PagedLlamaAttentionBlock
@@ -35,7 +37,10 @@ class DeepseekShardedTest(unittest.TestCase):
                 t[k] = flattened[k]
         theta = Theta(flat_to_nested_dict(t))
 
-        sharded_theta = shard_theta(theta, spec)
+        sharded_config = deepcopy(config)
+        sharded_config.tensor_parallelism_size = sharding
+
+        sharded_theta = shard_theta(theta, sharded_config)
 
         hp = config.hp
         reference_model = PagedLlamaAttentionBlock(
@@ -88,3 +93,10 @@ class DeepseekShardedTest(unittest.TestCase):
         )
         sharded = ops.unshard(sharded)
         assert torch.isclose(reference, sharded, atol=1e-5).all()
+
+
+# def main():
+#     DeepseekShardedTest().test_deepseek()
+
+# if __name__ == "__main__":
+#     main()

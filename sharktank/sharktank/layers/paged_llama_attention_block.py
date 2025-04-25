@@ -37,7 +37,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         head_count_kv: int,
         rms_epsilon: float,
         model_arch: str,
-        attention_kernel: str = "decomposed",
+        attention_kernel: str = "torch",
         v_head_dim: Optional[int] = None,
         rope_dimension_count: Optional[int] = None,
         attention_dtype: Optional[torch.dtype] = None,
@@ -95,7 +95,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             self.add_module(
                 "kv_norm", RMSNormLayer(theta("attn_kv_a_norm"), epsilon=rms_epsilon)
             )
-            if "wq" in theta:
+            if "q" in theta:
                 self.wq = LinearLayer(theta("q"))
             else:
                 self.wq = None

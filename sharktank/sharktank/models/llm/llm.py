@@ -350,14 +350,14 @@ class AttentionFFNBlock(ThetaLayer):
             ),
         }
 
-        if block_index >= config.hp.n_dense_layers:
-            (
-                score_experts,
-                moe_activation,
-                self.add_residual,
-                normalize_experts,
-            ) = moe_func_map[config.hp.model_arch]
+        (
+            score_experts,
+            moe_activation,
+            self.add_residual,
+            normalize_experts,
+        ) = moe_func_map[config.hp.model_arch]
 
+        if block_index >= config.hp.n_dense_layers:
             self.add_module(
                 "ffn",
                 MoeBlock(

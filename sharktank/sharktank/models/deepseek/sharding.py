@@ -31,9 +31,6 @@ class LatentAttentionBlockSharding(ThetaLayerSharding):
                 "attn_kv_a_norm": RmsNormReplicatedSharding(
                     self.shard_count
                 ).theta_sharding(),
-                "q": LinearSplitParallelWeightAndBiasSharding(
-                    shard_count=self.shard_count
-                ).theta_sharding(),
                 "attn_q_a": LinearSplitParallelWeightAndBiasSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),

@@ -19,19 +19,22 @@ def make_deepseek_attention_block(
     block_idx: int,
     dim: int,
     heads: int,
-    rope_dim: int,
-    nope_dim: int,
+    qk_rope_head_dim: int,
+    qk_nope_head_dim: int,
     kv_latent_dim: int,
+    q_lora_rank: int,
     v_head_dim: int,
+    n_dense_layers: int,
     dtype: torch.dtype | None = None,
 ) -> Theta:
     attention_theta = make_latent_attention_block_theta(
         block_idx=block_idx,
         dim=dim,
         heads=heads,
-        rope_dim=rope_dim,
-        nope_dim=nope_dim,
+        qk_rope_head_dim=qk_rope_head_dim,
+        qk_nope_head_dim=qk_nope_head_dim,
         kv_latent_dim=kv_latent_dim,
+        q_lora_rank=q_lora_rank,
         v_head_dim=v_head_dim,
         dtype=dtype,
     )
@@ -50,33 +53,33 @@ def make_moe_block_theta(
                 name=f"blk.{block_idx}.ffn_norm.weight", data=make_rand_torch((ffn_dim))
             ),
             # Routed experts tensors
-            f"moe.ffn_gate_inp.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.moe.ffn_gate_inp.weight",
+            f"ffn_gate_inp.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_gate_inp.weight",
                 data=make_rand_torch((num_experts, ffn_dim)),
             ),
-            f"moe.ffn_gate_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.moe.ffn_gate_exps.weight",
+            f"ffn_gate_exps.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_gate_exps.weight",
                 data=make_rand_torch((num_experts, inter_dim, ffn_dim)),
             ),
-            f"moe.ffn_up_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.moe.ffn_up_exps.weight",
+            f"ffn_up_exps.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_up_exps.weight",
                 data=make_rand_torch((num_experts, inter_dim, ffn_dim)),
             ),
-            f"moe.ffn_down_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.moe.ffn_down_exps.weight",
+            f"ffn_down_exps.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_down_exps.weight",
                 data=make_rand_torch((num_experts, ffn_dim, inter_dim)),
             ),
             # Shared experts tensors
-            f"shared_experts.ffn_gate_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.shared_experts.ffn_gate_exps.weight",
+            f"ffn_gate_shexp.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_gate_shexp.weight",
                 data=make_rand_torch((shared_experts * inter_dim, ffn_dim)),
             ),
-            f"shared_experts.ffn_up_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.shared_experts.ffn_up_exps.weight",
+            f"ffn_up_shexp.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_up_shexp.weight",
                 data=make_rand_torch((shared_experts * inter_dim, ffn_dim)),
             ),
-            f"shared_experts.ffn_down_exps.weight": DefaultPrimitiveTensor(
-                name=f"blk.{block_idx}.shared_experts.ffn_down_exps.weight",
+            f"ffn_down_shexp.weight": DefaultPrimitiveTensor(
+                name=f"blk.{block_idx}.ffn_down_shexp.weight",
                 data=make_rand_torch((ffn_dim, shared_experts * inter_dim)),
             ),
         }
@@ -97,11 +100,13 @@ def make_random_deepseek_theta(
             block_idx=i,
             dim=config.hp.embedding_length,
             heads=config.hp.attention_head_count,
-            rope_dim=config.hp.rope_dimension_count,
-            nope_dim=config.hp.nope_dim,
-            kv_latent_dim=config.hp.kv_latent_dim,
+            qk_rope_head_dim=config.hp.qk_rope_head_dim,
+            qk_nope_head_dim=config.hp.qk_nope_head_dim,
+            kv_latent_dim=config.hp.kv_lora_rank,
             v_head_dim=config.hp.v_head_dim,
             dtype=dtype,
+            n_dense_layers=config.hp.n_dense_layers,
+            q_lora_rank=config.hp.q_lora_rank,
         ).tree
 
     res[f"output.weight"] = DefaultPrimitiveTensor(

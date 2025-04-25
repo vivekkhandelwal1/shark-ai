@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from .testing import make_random_deepseek_theta
+from sharktank.models.deepseek.testing import make_random_deepseek_theta
 
 from sharktank.layers.configs import LlamaHParams, LlamaModelConfig
 from sharktank.types import Dataset
@@ -22,7 +22,7 @@ parser.add_argument("-o", "--output", default="/tmp/toy_deepseek.irpa")
 def generate(seed):
     torch.manual_seed(seed=12345)
     dtype = torch.float32
-    block_seq_stride = 16
+    block_seq_stride = 32
     max_blocks = 8
 
     rope_dimension_count = 16
@@ -37,7 +37,7 @@ def generate(seed):
         hp=LlamaHParams(
             context_length=block_seq_stride * max_blocks,
             embedding_length=32,
-            block_count=1,
+            block_count=4,
             feed_forward_length=23,
             rope_dimension_count=rope_dimension_count,
             rope_freq_base=10000.0,
@@ -48,10 +48,15 @@ def generate(seed):
             qk_nope_head_dim=qk_nope_head_dim,
             qk_rope_head_dim=qk_rope_head_dim,
             v_head_dim=32,
+            kv_lora_rank=512,
+            q_lora_rank=1536,
             expert_count=expert_count,
             expert_used_count=used_experts,
+            expert_shared_count=1,
+            n_expert_groups=2,
+            n_limited_groups=1,
+            n_dense_layers=3,
             model_arch="deepseek2",
-            expert_score_func="sigmoid",
             route_scale=2.5,
         ),
         block_seq_stride=block_seq_stride,
