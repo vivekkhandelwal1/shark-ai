@@ -4,6 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+from asyncio import gather
 import logging
 
 from typing import List
@@ -98,7 +99,7 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
                 config.decode_callback(req)
 
             await beam_group.wait()
-            beam_group.process_beams()
+            beam_group.process_beams(config.results_callback)
 
         config.decode_end_callback(reservations)
         beam_group.clean_up()
@@ -114,4 +115,6 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
                     for beam in beam_group.active_beams
                 ]
             )
+        if exec_req.stream:
+            return
         config.results_callback(results)

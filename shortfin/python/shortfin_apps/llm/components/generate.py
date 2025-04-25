@@ -36,6 +36,7 @@ from .token_selection_strategy import (
     build_token_selector,
     build_token_selector_config,
     is_multi_response,
+    TokenSelectionStrategy,
 )
 from .tokenizer import Encoding
 
@@ -90,6 +91,7 @@ class GenerateItemProcess(sf.Process):
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
             decode_bs=self.decode_config.max_decode_batch_size,
+            stream=self.gen_req.stream,
         )
         exec_req._cache = self.client.prefill_batcher.page_cache
         try:
@@ -102,9 +104,12 @@ class GenerateItemProcess(sf.Process):
             exec_req.free_cache_pages()
 
     def results_callback(self, result: int | list[list[int]]):
-        if is_multi_response(self.decode_config.token_selection_strategy):
+        if not self.gen_req.stream and is_multi_response(
+            self.decode_config.token_selection_strategy
+        ):
             # TODO: Streaming is not supported for multiple responses
             self.result_token_ids = result
+            logger.info(f"Received multi-response: {self.result_token_ids}")
             return
 
         self._append_token(result)
@@ -154,6 +159,11 @@ class ClientGenerateBatchProcess(sf.Process):
         self.complete_infeed = self.system.create_queue()
         self.service = service
         self.decode_config = service.server_params.decode_config
+        self.decode_config.token_selection_strategy = (
+            TokenSelectionStrategy.MULTI_GREEDY
+            if self.gen_req.sampling_params.b_of_n > 1
+            else TokenSelectionStrategy.GREEDY
+        )
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
@@ -203,7 +213,7 @@ class ClientGenerateBatchProcess(sf.Process):
         self, gen_processes: List[GenerateItemProcess], streaming: bool
     ):
         if streaming:
-            logger.debug("Responding to streaming batch")
+            logger.info("Responding to streaming batch")
             self.responder.stream_part(b"data: [DONE]\n\n")
             self.responder.stream_part(None)
             return
