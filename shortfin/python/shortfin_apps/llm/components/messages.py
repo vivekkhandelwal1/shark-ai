@@ -28,6 +28,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         input_token_ids: list[int],
         rid=None,
         decode_bs: int | None = None,
+        stream: bool = False,
     ):
         super().__init__()
         self.phase = phase
@@ -58,6 +59,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+        self.stream: bool = stream
 
     @classmethod
     def copy_exec_request(
