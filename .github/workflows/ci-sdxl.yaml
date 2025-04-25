@@ -67,6 +67,7 @@ jobs:
         pip install -r requirements-tests.txt
         pip install -r ../requirements-iree-pinned.txt
         pip install -r ../pytorch-rocm-requirements.txt
+        pip install -r ../sharktank/requirements-tests.txt
         pip freeze
 
     - name: Install shortfin and sharktank
