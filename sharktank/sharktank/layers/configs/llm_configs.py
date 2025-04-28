@@ -186,14 +186,36 @@ class LlamaHParams:
             f"{self.model_arch}.attention.layer_norm_rms_epsilon": self.attention_layer_norm_rms_epsilon,
             f"{self.model_arch}.attention.head_count_kv": self.attention_head_count_kv,
         }
-        if self.rope_dimension_count is not None:
-            res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
-        if self.rope_freq_base is not None:
-            res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
+        if self.q_lora_rank is not None:
+            res[f"{self.model_arch}.attention.q_lora_rank"] = self.q_lora_rank
+        if self.kv_lora_rank is not None:
+            res[f"{self.model_arch}.attention.kv_lora_rank"] = self.kv_lora_rank
+        if self.route_scale is not None:
+            res[f"{self.model_arch}.expert_weights_scale"] = self.route_scale
+        if self.n_dense_layers is not None:
+            res[f"{self.model_arch}.leading_dense_block_count"] = self.n_dense_layers
         if self.expert_count is not None:
             res[f"{self.model_arch}.expert_count"] = self.expert_count
         if self.expert_used_count is not None:
             res[f"{self.model_arch}.expert_used_count"] = self.expert_used_count
+        if self.expert_shared_count is not None:
+            res[f"{self.model_arch}.expert_shared_count"] = self.expert_shared_count
+        if self.rope_dimension_count is not None:
+            res[f"{self.model_arch}.rope.dimension_count"] = self.rope_dimension_count
+        if self.rope_freq_base is not None:
+            res[f"{self.model_arch}.rope.freq_base"] = self.rope_freq_base
+        if self.rope_scaling_type is not None:
+            res[f"{self.model_arch}.rope.scaling.type"] = self.rope_scaling_type
+        if self.rope_scaling_factor is not None:
+            res[f"{self.model_arch}.rope.scaling.factor"] = self.rope_scaling_factor
+        if self.rope_scaling_original_context_length is not None:
+            res[
+                f"{self.model_arch}.rope.scaling.original_context_length"
+            ] = self.rope_scaling_original_context_length
+        if self.rope_scaling_yarn_log_multiplier is not None:
+            res[
+                f"{self.model_arch}.rope.scaling.yarn_log_multiplier"
+            ] = self.rope_scaling_yarn_log_multiplier
         return res
 
 
