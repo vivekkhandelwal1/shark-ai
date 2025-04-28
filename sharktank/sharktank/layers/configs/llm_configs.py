@@ -80,7 +80,6 @@ class LlamaHParams:
 
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
-        print("p", p)
         name_prefix = p.get("general.architecture", "llama")
         default_expert_count = 0
         default_expert_used_count = 0
