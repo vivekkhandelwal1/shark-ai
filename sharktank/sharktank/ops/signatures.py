@@ -64,6 +64,7 @@ __all__ = [
     "scaled_dot_product_attention",
     "sharded_cat",
     "sharded_sum",
+    "sigmoid",
     "softmax",
     "squeeze",
     "to",
@@ -1052,6 +1053,23 @@ def _sharded_sum_trampoline(d: SignatureDispatcher, maybe_sharded: AnyTensor):
 
 
 @overridable
+def sigmoid(tensoir: AnyTensor) -> AnyTensor:
+    """See torch.sigmoid"""
+    ...
+
+
+@sigmoid.trampoline
+def _sigmoid_trampoline(d: SignatureDispatcher, tensor: AnyTensor) -> AnyTensor:
+    dispatch_args = (tensor,)
+    for override in d.find_overrides(dispatch_args):
+        result = override(tensor)
+        if result is not NotImplemented:
+            return override, result
+    else:
+        d.fail(dispatch_args)
+
+
+@overridable
 def softmax(
     tensor: AnyTensor, dim: Optional[int] = None, dtype: Optional[torch.dtype] = None
 ) -> AnyTensor:
@@ -1241,16 +1259,23 @@ def _squeeze_trampoline(
 
 
 @overridable
-def topk(tensor, k: int, dim: int) -> AnyTensor:
+def topk(tensor, k: int, dim: int, largest: bool, sorted: bool) -> AnyTensor:
     """See torch.topk"""
     ...
 
 
 @topk.trampoline
-def _topk_trampoline(d: SignatureDispatcher, tensor, k: int, dim: int) -> AnyTensor:
+def _topk_trampoline(
+    d: SignatureDispatcher,
+    tensor,
+    k: int,
+    dim: int,
+    largest: bool = True,
+    sorted: bool = True,
+) -> AnyTensor:
     tensors = (tensor,)
-    for override in d.find_overrides(tensor):
-        result = override(tensor, k=k, dim=dim)
+    for override in d.find_overrides(tensors):
+        result = override(tensor, k=k, dim=dim, largest=largest, sorted=sorted)
         if result is not NotImplemented:
             return override, result
     else:
