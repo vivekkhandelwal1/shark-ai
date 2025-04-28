@@ -9,6 +9,7 @@ import itertools
 from parameterized import parameterized, parameterized_class
 
 import torch
+import torch.nn.functional as F
 
 from sharktank import ops
 from sharktank.types import *
@@ -250,20 +251,34 @@ class ElementwiseTest(unittest.TestCase):
 
         torch.testing.assert_close(actual_result, expected_result)
 
-    def testRhsAndLhsShardedAddWithBroadcasting(self):
-        a = torch.rand(1, 4, 5, 6, dtype=torch.float32)
-        b = torch.rand(3, 4, 1, 6, dtype=torch.float32)
+    @parameterized.expand(tuple(itertools.product([0, 1, 2, 3], repeat=2)))
+    def testRhsAndLhsShardedAddWithBroadcasting(self, i: int, j: int):
+        a = torch.rand((1, 4, 5, 6)[i:], dtype=torch.float32)
+        b = torch.rand((3, 4, 1, 6)[j:], dtype=torch.float32)
 
         expected_result = a + b
 
-        shard_dim = 3
         shard_count = 3
-        sharded_a = ops.reshard_split(a, dim=shard_dim, count=shard_count)
-        sharded_b = ops.reshard_split(b, dim=shard_dim, count=shard_count)
+        sharded_a = ops.reshard_split(a, dim=a.dim() - 1, count=shard_count)
+        sharded_b = ops.reshard_split(b, dim=b.dim() - 1, count=shard_count)
         sharded_result = sharded_a + sharded_b
         actual_result = ops.reshard_like(sharded_result, expected_result)
 
         torch.testing.assert_close(actual_result, expected_result)
+
+    @parameterized.expand(tuple(itertools.product([0, 1, 2], repeat=2)))
+    def testShardedReplicatedAddWithBroadcasting(self, i: int, j: int):
+        a = torch.rand((4, 1, 6)[i:], dtype=torch.float32)
+        b = torch.rand((4, 5, 6)[j:], dtype=torch.float32)
+
+        expected_result = a + b
+
+        a_s = ops.replicate(a, count=3)
+        b_s = ops.reshard_split(b, dim=b.dim() - 1, count=3)
+        actual_result = a_s + b_s
+        actual_result2 = b_s + a_s
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result))
+        torch.testing.assert_close(expected_result, ops.unbox_tensor(actual_result2))
 
     @parameterized.expand(
         [
@@ -271,7 +286,8 @@ class ElementwiseTest(unittest.TestCase):
             (torch.div,),
             (torch.fmin,),
             (torch.fmax,),
-            (torch.sub),
+            (torch.sub,),
+            (torch.mul,),
         ]
     )
     def testBinaryOperators(self, operator):
@@ -622,6 +638,33 @@ class NormalizationTest(unittest.TestCase):
         actual_result = ops.sharded_cat(sharded_result)
 
         torch.testing.assert_close(actual_result, expected_result)
+
+
+class PadTest(unittest.TestCase):
+    def setUp(self):
+        torch.random.manual_seed(0)
+
+    def testPadReplicated(self):
+        tensor = torch.rand(3, 4, 5, dtype=torch.float32)
+        pad = [1, 2, 3, 4]
+        expected_result = F.pad(tensor, pad)
+        sharded_tensor = ops.replicate(tensor, count=2)
+        actual_result = ops.pad(sharded_tensor, pad)
+
+        assert ops.equal(expected_result, actual_result)
+
+    @parameterized.expand(((0,), (1,), (2,), (3,)))
+    def testPadSplit(self, shard_dim: int):
+        tensor = torch.rand((6, 6, 6, 6), dtype=torch.float32)
+        pad = [1, 2, 3, 4]
+        # assert False, "Handle 0"
+        expected_result = F.pad(tensor, pad)
+        sharded_tensor = SplitPrimitiveTensor(
+            ts=tensor.split(2, dim=shard_dim), shard_dim=shard_dim
+        )
+        actual_result = ops.pad(sharded_tensor, pad)
+
+        assert ops.equal(expected_result, actual_result)
 
 
 class PermuteTest(unittest.TestCase):
