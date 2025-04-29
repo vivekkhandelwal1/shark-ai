@@ -127,6 +127,7 @@ jobs:
 
       - name: Install pip deps
         run: |
+          sudo apt update
           sudo apt install python3.12-dev
           python -m pip install --no-compile --upgrade pip
 
