@@ -140,6 +140,12 @@ jobs:
 
           pip freeze
 
+      - name: Check ROCM
+        run: |
+          rocminfo
+          rocm-smi
+
+
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
