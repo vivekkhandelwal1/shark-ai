@@ -142,8 +142,8 @@ jobs:
 
       - name: Check ROCM
         run: |
-          rocminfo
-          rocm-smi
+          sudo rocminfo
+          sudo rocm-smi
 
 
       - name: Run sharktank tests
