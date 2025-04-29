@@ -95,15 +95,9 @@ def mek_menk_men(inputs, weights):
     return result
 
 
-def me_men_men(inputs, weights):
+def me_men_men(inputs: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
     # batch dims: me, lhs pdims: none, lhs rdims: none, rhs pdims: n, rhs rdims: none
-    inputs_shape = inputs.shape
-    inputs = inputs.view(inputs_shape[0] * inputs_shape[1], 1, 1)
-    weights_shape = weights.shape
-    weights = weights.view(weights_shape[0] * weights_shape[1], weights_shape[2], 1)
-    result = matmul(inputs, weights, transpose_rhs=True)
-    result = result.view(weights_shape[0], weights_shape[1], weights_shape[2])
-    return result
+    return inputs.unsqueeze(inputs.dim()) * weights
 
 
 @einsum_2args.override(AllOfType(Tensor, PrimitiveTensor, QuantizedTensor))

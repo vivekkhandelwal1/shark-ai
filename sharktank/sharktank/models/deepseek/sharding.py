@@ -34,14 +34,13 @@ class LatentAttentionBlockSharding(ThetaLayerSharding):
                 "attn_q_a": LinearSplitParallelWeightAndBiasSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),
-                "attn_q_b": LinearSplitParallelWeightAndBiasSharding(
+                "attn_q_b": LinearSplitReductionDimSharding(
                     shard_count=self.shard_count,
-                    weight_and_bias_spit_dim=1,
                 ).theta_sharding(),
-                "attn_kv_a_mqa": LinearReplicatedWeightAndBiasSharding(
+                "attn_kv_a_mqa": LinearSplitParallelWeightAndBiasSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),
-                "attn_kv_b": LinearSplitParallelWeightAndBiasSharding(
+                "attn_kv_b": LinearSplitReductionDimSharding(
                     shard_count=self.shard_count
                 ).theta_sharding(),
                 "attn_output": LinearSplitReductionDimSharding(

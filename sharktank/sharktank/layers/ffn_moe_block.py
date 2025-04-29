@@ -37,6 +37,14 @@ class PreGatherFFNMOE(ThetaLayer):
     def pre_matmul_gather(self, inputs, weights, experts, einstring="mk,menk->men"):
         inputs = inputs[:, :]
         weights = weights[experts, :, :]
+        # TODO: custom implementation on the sharded weights dim -2.
+        # We can't do a general solution for the mk,menk->men case as dims 1 and 2 get
+        # collapsed into 1, which requires a block-cyclic split tensor and this is
+        # something that requires a lot of work. We really want to shard the n dim
+        # as then we can do the next matmul without without resharding where the
+        # reduction dim would be sharded.
+        # The mek,menk->men case does not need the block-cyclic tensor, it should be
+        # fine.
         matmul = einsum_2args(inputs, weights, einstring)
         return matmul
 
@@ -70,6 +78,7 @@ class PreGatherFFNMOE(ThetaLayer):
         ffn_down = self.pre_matmul_gather(
             ffn_gate * ffn_up, self.ffn_down, experts, einstring="mek,menk->men"
         )
+        # TODO: all-reduce the unreduced ffn_down tensor.
         ffn_down = einsum_2args(expert_gate, ffn_down, "me,men->men")
         return torch.sum(ffn_down, dim=1)
 

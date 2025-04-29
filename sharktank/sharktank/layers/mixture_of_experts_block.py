@@ -80,6 +80,12 @@ class MoeBlock(ThetaLayer):
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(to(router_logits, torch.float))
 
+        # TODO: replicate router_weights. If we keep this split 2 of the topks
+        # below would need be performed on the sharded dimension, which is awkward.
+        # This will result in expert_gate, top_k_experts being replicated.
+        # Another option would be to gather just on one device until the computation
+        # of expert_gate, top_k_experts. Then replicate them to all devices.
+
         # self.n_expert_groups = None
         # self.n_limited_groups = None
         # Select top k experts from router weights
