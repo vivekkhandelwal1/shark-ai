@@ -244,11 +244,12 @@ class LlmSingleProcessServiceManager(LlmServiceManager):
             batch_proc = ClientGenerateBatchProcess(
                 service, gen_req, response_handler)
             await asyncio.gather(batch_proc.launch())
-        
-        future = asyncio.run_coroutine_threadsafe(
+            service.remove_from_queue()
+
+        asyncio.run_coroutine_threadsafe(
             generate_wrapper(), loop=service.main_worker.loop)
-        _ = future.result()  # no result
-        service.remove_from_queue()
+        # Don't wait for it to finish! response_handler should take care of
+        # notifying when the response is ready. Waiting here increases latency
 
     def shutdown(self):
         self.service_environment.shutdown()
