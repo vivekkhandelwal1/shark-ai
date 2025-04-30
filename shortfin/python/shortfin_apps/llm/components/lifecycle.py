@@ -14,12 +14,16 @@ def lifecycle(app: FastApi):
 ```
 """
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from .config_struct import ModelParams, ServerParams
+from .io_struct import GenerateReqInput
 from .token_selection_strategy import DecodeConfig
 from .manager import LlmSystemManager
-from .service import LlmGenerateService
+from .service import LlmGenerateService, LlmServiceProcess, LlmServiceManager
 from .tokenizer import Tokenizer
-from typing import TYPE_CHECKING
+from multiprocessing import JoinableQueue
+from typing import TYPE_CHECKING, List
 from fastapi import FastAPI
 
 
@@ -48,69 +52,37 @@ class ShortfinLlmLifecycleManager:
     """
 
     def __init__(self, args):
-        # Load server configuration with priority: command line > config file > defaults
-        model_params = ModelParams.load_json(args.model_config)
-        server_params = ServerParams.load(
-            args.server_config if hasattr(args, "server_config") else None
-        )
-        server_params.update_from_args(args)
-        decode_bs = model_params.decode_batch_sizes[-1]
-        if server_params.decode_config is None:
-            decode_config = DecodeConfig(
-                args.num_beams,
-                args.token_selection_strategy,
-                logits_normalization=model_params.logits_normalization,
-                max_decode_batch_size=decode_bs,
-            )
-            server_params.decode_config = decode_config
-
-        # Setup system (configure devices, etc).
-        sysman = LlmSystemManager(
-            device=args.device,
-            device_ids=server_params.device_ids,
-            async_allocs=server_params.amdgpu_async_allocations,
-            amdgpu_allocators=server_params.amdgpu_allocators,
-            amdgpu_allow_device_reuse=server_params.amdgpu_allow_device_reuse,
-        )
-
-        # Setup each service we are hosting.
-        eos_token = get_eos_from_tokenizer_config(args.tokenizer_config_json)
-        tokenizer = Tokenizer.from_tokenizer_json_file(
-            args.tokenizer_json, eos_token=eos_token
-        )
-        print(f"Creating {server_params.instances} instances")
-        # Create a list of LLM instances
-        services = {}
-        for i in range(server_params.instances):
-            service = LlmGenerateService(
-                name=f"instance{i}",
-                sysman=sysman,
-                tokenizer=tokenizer,
-                model_params=model_params,
-                server_params=server_params,
-                program_isolation=server_params.program_isolation,
-            )
-            service.load_inference_module(args.vmfb)
-            service.load_inference_parameters(*args.parameters, parameter_scope="model")
-            services[i] = service
+        self.service_manager = LlmServiceManager(args)
 
         self.sysman = sysman
         self.services = services
+        self.processes = processes
         self.request_counter = 0
         self.current_instance = 0
 
+        self.requent_queues: List[JoinableQueue] = [
+            JoinableQueue() for _ in range(args.instances)
+        ]
+        self.response_queues: List[JoinableQueue] = [
+            JoinableQueue() for _ in range(args.instances)
+        ]
+
+        self.executor: ThreadPoolExecutor = ThreadPoolExecutor(
+            max_workers=args.instances
+        )
+
     def __enter__(self):
         self.sysman.start()
-        for service_name, service in self.services.items():
+        for service_name, service in self.service_manager.services.items():
             logging.info("Initializing service '%s': %r", service_name, service)
             service.start()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        for service_name, service in self.services.items():
+        for service_name, service in self.service_manager.services.items():
             logging.info("Shutting down service '%s'", service_name)
             service.shutdown()
-        self.sysman.shutdown()
+        self.service_manager.sysman.shutdown()
         return False
 
     @asynccontextmanager
@@ -127,7 +99,31 @@ class ShortfinLlmLifecycleManager:
         See `server.py` for a usage example.
         """
         with self:
-            app.state.services = self.services
-            app.state.request_counter = self.request_counter
-            app.state.current_instance = self.current_instance
+            app.state.services = self.service_manager.services
+            app.state.request_counter = self.service_manager.request_counter
+            app.state.current_instance = self.service_manager.current_instance
+            app.state.send_request = self.send_request
+            app.state.get_response = self.get_response
             yield
+
+    def get_current_instance(self) -> int:
+        return self.service_manager.current_instance
+    
+    def increment_instance(self):
+        self.service_manager.current_instance += 1
+
+    def get_current_service(self) -> LlmGenerateService:
+        return self.service_manager.services[self.service_manager.current_instance]
+    
+    def send_request(self, service: LlmGenerateService, gen_req: GenerateReqInput):
+        instance_num: int = service.instance_num
+        self.request_queues[instance_num].put(gen_req)
+        print(f"Request queued: {gen_req.text}")
+
+    async def get_response(self, service: LlmGenerateService):
+        instance_num: int = service.instance_num
+        response = await asyncio.get_running_loop().run_in_executor(
+            self.executor, self.request_queues[instance_num].get()
+        )
+        self.response_queues[instance_num].task_done()
+        return response
