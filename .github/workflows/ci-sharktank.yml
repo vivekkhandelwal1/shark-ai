@@ -210,7 +210,7 @@ jobs:
       # scattered on different CI machines.
         run: |
           source ${VENV_DIR}/bin/activate
-          pytest \
+          sudo pytest \
             -v \
             --log-cli-level=info \
             --with-quark-data \
