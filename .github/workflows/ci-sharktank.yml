@@ -146,6 +146,7 @@ jobs:
       - name: Check ROCM
         run: |
           cat /etc/passwd
+          ls -l /dev/kfd
           id -un
           rocminfo
           rocm-smi
