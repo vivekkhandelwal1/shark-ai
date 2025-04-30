@@ -85,6 +85,7 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
+          sudo su
           pytest -n 4 sharktank/ \
             --durations=10 \
             --log-cli-level=info \
@@ -151,6 +152,7 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
+          sudo su
           pytest sharktank/ \
             --durations=10 \
             --capture=no \
