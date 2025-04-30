@@ -145,6 +145,7 @@ jobs:
 
       - name: Check ROCM
         run: |
+          id -un
           rocminfo
           rocm-smi
           getent group video
