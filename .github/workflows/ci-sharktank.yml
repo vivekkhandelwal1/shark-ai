@@ -145,6 +145,7 @@ jobs:
 
       - name: Check ROCM
         run: |
+          rocminfo
           cat /etc/passwd
 
       - name: Run sharktank tests
