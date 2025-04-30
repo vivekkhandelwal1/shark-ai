@@ -40,7 +40,6 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         attention_kernel: str = "torch",
         v_head_dim: Optional[int] = None,
         rope_dimension_count: Optional[int] = None,
-        attention_dtype: Optional[torch.dtype] = None,
         attention_scale: Optional[float] = None,
         softcap: Optional[float] = None,
         fake_quant: Optional[bool] = True,
@@ -151,7 +150,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             else:
                 q = self.wq_b(self.q_norm(self.wq_a(x)))
                 # print('q0', type(self.q_norm(self.wq_a(x))))
-                q = ops.replicate(q, count=self.shard_count)
+                if not isinstance(q, ReplicatedTensor):
+                    q = ops.replicate(q, count=self.shard_count)
                 q = q.unflatten(2, (self.head_count, -1))
 
             # print('q1', type(q))
@@ -183,10 +183,12 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             xq = ops.cat((q_nope, q_rope), dim=-1)
 
             ##TODO: Restructure this to apply the wkv_b post attention instead of here
+            # print('self.kv_norm', self.kv_norm.shape)
             kv_norm = self.kv_norm(kv_nope)
             # print('wkv_b', type(kv_norm))
             wkv_b = self.wkv_b(kv_norm)
-            wkv_b = ops.replicate(wkv_b, count=self.shard_count)
+            if not isinstance(wkv_b, ReplicatedTensor):
+                wkv_b = ops.replicate(wkv_b, count=self.shard_count)
             wkv_b = wkv_b.unflatten(2, (self.head_count, -1))  # split
 
             # print('wkv_b', type(wkv_b))
