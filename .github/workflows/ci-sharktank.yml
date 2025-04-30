@@ -145,8 +145,10 @@ jobs:
 
       - name: Check ROCM
         run: |
-          rocminfo
-          rocm-smi
+          sudo rocminfo
+          sudo rocm-smi
+          getent group video
+          getent group render
 
 
       - name: Run sharktank tests
