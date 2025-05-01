@@ -12,7 +12,7 @@ import torch
 
 
 from sharktank.kernels import (
-    elementwise_binary_tensor_tensor,
+    elementwise_tensor_tensor,
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
@@ -87,7 +87,7 @@ def elementwise_binary(operator, x, y, *args, **kwargs):
     if isinstance(y, Number):
         return NotImplemented
 
-    new_qs = elementwise_binary_tensor_tensor(operator_map[operator], x, inp_y)
+    new_qs = elementwise_tensor_tensor(operator_map[operator], x, inp_y)
     layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=scale)
     return PlanarQuantizedTensor(shape=x.shape, layout=layout)
 
