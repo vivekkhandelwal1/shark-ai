@@ -143,31 +143,34 @@ class LlmServiceProcess(multiprocessing.Process):
         self.service_environment.start()
         print(f"LlmServiceProcess {self.name} ready")
 
+        async def generate_wrapper(request: GenerateReqInput, response_counter: int):
+            def response_handler(response):
+                # print(f"LlmServiceProcess {self.name} sending response packet {response_counter}")
+                self.response_queue.put((response_counter, response))
+                self.service.remove_from_queue()
+
+            batch_proc = ClientGenerateBatchProcess(
+                self.service, request, response_handler)
+            batch_proc.launch()
+
         while True:
             request_packet: Tuple[int, GenerateReqInput] = self.request_queue.get()
+            self.request_queue.task_done()
             request_counter = request_packet[0]
             request = request_packet[1]
-            print(f"LlmServiceProcess {self.name} received request packet: {request_counter}")
+            # print(f"LlmServiceProcess {self.name} received request packet: {request_counter}")
 
             if request is None:
                 # Shutdown signal
+                self.response_queue.put((0, None))
                 break
 
             if not self.service.add_to_queue():
                 logger.warning(f"Queue full, dropping request {request_counter}: {request}")
                 continue
 
-            def response_handler(response):
-                self.response_queue.put((request_counter, response))
-                self.service.remove_from_queue()
-
-            async def generate_wrapper():
-                batch_proc = ClientGenerateBatchProcess(
-                    self.service, request, response_handler)
-                batch_proc.launch()
-
             asyncio.run_coroutine_threadsafe(
-                generate_wrapper(), loop=self.service.main_worker.loop)
+                generate_wrapper(request, request_counter), loop=self.service.main_worker.loop)
             # Don't wait for it to finish! response_handler should take care of
             # notifying when the response is ready. Waiting here increases
             # latency
@@ -269,7 +272,76 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
     """
     Manages each service instance in its own process.
     """
+    class Instance:
+        def __init__(self, instance_num: int, args, max_queue_size: int):
+            self.instance_num = instance_num
+            self.max_queue_size = max_queue_size
+            self.num_outstanding_requests = 0
+            self.request_queue = JoinableQueue()
+            self.response_queue = JoinableQueue()
+            self.executor = ThreadPoolExecutor(max_workers=1)
+            self.response_map: dict[int, callable] = {}
+            self.service_process = LlmServiceProcess(
+                args,
+                request_queue=self.request_queue,
+                response_queue=self.response_queue,
+            )
 
+        def start(self):
+            self.service_process.start()
+
+            def receive_responses():
+                while True:
+                    response_packet: Tuple[int, bytes] = self.response_queue.get()
+                    self.response_queue.task_done()
+                    if response_packet[1] is None:
+                        break
+                    response_counter = response_packet[0]
+                    if response_counter in self.response_map:
+                        # print(f"Instance: Received response for request counter: {response_counter}")
+                        response_handler = self.response_map.pop(response_counter)
+                        response_handler(response_packet[1])
+                        self.remove_from_queue()
+                    else:
+                        logger.warning(
+                            f"Instance: Received response for unknown request counter: {response_counter}"
+                        )
+
+            self.executor.submit(receive_responses)
+
+        def add_to_queue(self) -> bool:
+            if self.num_outstanding_requests >= self.max_queue_size:
+              return False
+            self.num_outstanding_requests += 1
+            return True
+
+        def remove_from_queue(self):
+            self.num_outstanding_requests -= 1
+            if (self.num_outstanding_requests < 0):
+                logger.warning(
+                    f"Instance {self.instance_num}: Outstanding requests count is negative: {self.num_outstanding_requests}"
+                )
+
+        async def send_request(self, request_counter: int,
+                               gen_req: GenerateReqInput,
+                               response_handler: callable):
+            # print(f"Generating multi-process with service: {self.instance_num}")
+            # print(f"Enqueuing request {request_counter}"
+            #       f" to instance {self.instance_num}")
+            self.request_queue.put((request_counter, gen_req))
+            # put shouldn't block, as the caller checked that the queue wasn't full before calling this method
+            self.response_map[request_counter] = response_handler
+
+        def shutdown(self):
+            print(f"Shutting down LlmMultiProcessServiceManager instance {self.instance_num}")
+            # Signal the service process to shut down
+            self.request_queue.put((0, None))
+            # Wait for the service process to finish
+            self.service_process.join()
+            self.response_queue.join()
+            self.executor.shutdown(wait=True)
+            print(f"LlmMultiProcessServiceManager instance {self.instance_num} shutdown complete")
+    
     def __init__(self, args):
         super().__init__(args)
         self.server_params = LlmServiceEnvironment.get_server_params(args)
@@ -278,66 +350,31 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
         self.num_instances = self.server_params.instances
         max_queue_size = max(self.model_params.decode_batch_sizes)
 
-        self.request_queues: List[JoinableQueue] = [
-            JoinableQueue(max_queue_size) for _ in range(self.num_instances)
-        ]
-        self.response_queues: List[JoinableQueue] = [
-            JoinableQueue(max_queue_size) for _ in range(self.num_instances)
-        ]
-
-        self.executors: List[ThreadPoolExecutor] = [
-            ThreadPoolExecutor(max_workers=max_queue_size)
-            for _ in range(self.num_instances)
-        ]
-
-        self.service_processes: List[LlmServiceProcess] = [
-            LlmServiceProcess(
-                args,
-                request_queue=self.request_queues[i],
-                response_queue=self.response_queues[i],
-            )
+        self.instances: List[LlmMultiProcessServiceManager.Instance] = [
+            LlmMultiProcessServiceManager.Instance(i, args, max_queue_size)
             for i in range(self.num_instances)
         ]
 
     def start(self):
-        for process in self.service_processes:
-            process.start()
+        for instance in self.instances:
+            instance.start()
 
     async def send_request(self, gen_req: GenerateReqInput, response_handler: callable):
         self.request_counter += 1
-        print(f"Set request counter to {self.request_counter}")
+
+        # Save global request counter before the await, or else it may change
+        # if another request is sent
+        request_counter = self.request_counter
+
         instance_num = self.get_next_instance_num()
-        while self.request_queues[instance_num].full():
+        while not self.instances[instance_num].add_to_queue():
             instance_num = self.get_next_instance_num()
             await asyncio.sleep(0.001)
 
-        print(f"Generating multi-process with service: {instance_num}")
-        request_queue = self.request_queues[instance_num]
-        response_queue = self.response_queues[instance_num]
-
-        def enqueue_request(request_counter: int):
-            print(f"Enqueuing request {request_counter} to instance {instance_num}")
-            request_queue.put((request_counter, gen_req))
-            response_packet: Tuple[int, bytes] = response_queue.get()
-            response_counter = response_packet[0]
-            # TODO: might need to use dict of responses to avoid crossed
-            # messages
-            if response_counter != request_counter:
-                logger.error(
-                    f"Response counter mismatch: expected {request_counter}, "
-                    f"got {response_packet[0]}"
-                )
-            response_handler(response_packet[1])
-
-        loop = asyncio.get_running_loop()
-        loop.run_in_executor(self.executors[instance_num], enqueue_request,
-                             self.request_counter)
+        await self.instances[instance_num].send_request(
+            request_counter, gen_req, response_handler
+        )
 
     def shutdown(self):
-        self.executor.shutdown(wait=True)
-        for respnse_queue in self.response_queues:
-            respnse_queue.join()
-        for request_queue in self.request_queues:
-            request_queue.put((0, None))
-        for process in self.service_processes:
-            process.join()
+        for instance in self.instances:
+            instance.shutdown()

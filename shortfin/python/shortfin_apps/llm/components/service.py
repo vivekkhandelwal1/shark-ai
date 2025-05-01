@@ -79,6 +79,7 @@ class LlmGenerateService(GenerateService):
 
     def add_to_queue(self) -> bool:
         """Try to add a request to the queue. Returns True if successful, False if queue is full."""
+        print(f"Adding to queue: {self.current_queue_size} of {self.max_queue_size}")
         if self.current_queue_size >= self.max_queue_size:
             return False
         self.current_queue_size += 1
