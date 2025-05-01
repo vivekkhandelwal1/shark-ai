@@ -85,7 +85,7 @@ def elementwise_binary(operator, x, y, *args, **kwargs):
         if not isinstance(unpacked_y, TensorScaledLayout) or unpacked_y._m:
             return NotImplemented
 
-    new_qs = elementwise_tensor_tensor(x, inp_y, operator_map[operator])
+    new_qs = elementwise_tensor_tensor(x._qs, inp_y, operator_map[operator])
     layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=scale)
     return PlanarQuantizedTensor(shape=x.shape, layout=layout)
 
