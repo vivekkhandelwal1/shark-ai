@@ -66,10 +66,8 @@ operator_map = {
     AllOfExprs(IsOfType(QuantizedTensor), IsOfType(Tensor, QuantizedTensor))
 )
 def elementwise_binary(operator, x, y, *args, **kwargs):
-    if operator not in operator_map.keys():
-        return NotImplemented
     # These two ops commute with scale, this is not true for all ops.
-    if operator != "mul" and operator != "add":
+    if operator not in operator_map.keys():
         return NotImplemented
 
     unpacked_x = x.unpack()
