@@ -33,7 +33,7 @@ class elementwise_tensor_tensor(CustomOp):
             x_desc.t.dtype == y_desc.t.dtype,
             lambda: f"elementwise_tensor_tensor: Types don't match. {x_desc.t.dtype} != {y_desc.t.dtype}",
         )
-        
+
         ksel.return_new_tensor(x_desc.t.shape, dtype=x_desc.t.dtype)
 
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):

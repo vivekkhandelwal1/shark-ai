@@ -61,12 +61,8 @@ operator_map = {
     torch.mul: "mul",
 }
 
-@elementwise.overide(QuantizedTensor)
-def elementwise:
 @elementwise.override(
-    AllOfExprs(
-        IsOfType(QuantizedTensor), IsOfType(Tensor, QuantizedTensor)
-    )
+    AllOfExprs(IsOfType(QuantizedTensor), IsOfType(Tensor, QuantizedTensor))
 )
 def elementwise_binary(operator, x, y, *args, **kwargs):
     if operator not in operator_map.keys():
