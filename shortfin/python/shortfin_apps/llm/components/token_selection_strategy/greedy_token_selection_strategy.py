@@ -11,6 +11,8 @@ from .base_token_selection_strategy import (
     BaseTokenSelectionStrategy,
     TokenSelectionStrategyConfig,
 )
+
+from .config import TokenSelectionStrategy
 from ..messages import LlmInferenceExecRequest, InferencePhase
 
 logger = logging.getLogger(__name__)
@@ -106,9 +108,13 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
             await exec_req.done
             token_int = beam.sample_logits()
             beam.last_token = token_int
-            logger.info(f"greedy beam token: {token_int}")
-            logger.info(f"callback: {config.results_callback}")
-            config.results_callback(token_int)
+            # logger.info(f"greedy beam token: {token_int}")
+            # logger.info(f"callback: {config.results_callback}")
+            if (
+                config.decode_config.token_selection_strategy
+                == TokenSelectionStrategy.GREEDY
+            ):
+                config.results_callback(token_int)
             if token_int == config.eos_token_id:
                 break
             beam.update_exec_req()

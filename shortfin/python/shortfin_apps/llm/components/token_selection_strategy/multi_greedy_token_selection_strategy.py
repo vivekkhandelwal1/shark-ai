@@ -7,6 +7,7 @@
 from asyncio import gather
 import logging
 
+import time
 from typing import List
 
 from .beam_group import BeamGroup
@@ -85,22 +86,30 @@ class MultiGreedyTokenSelectionStrategy(GreedyTokenSelectionStrategy):
         reservations = beam_group.active_beam_count
         config.decode_begin_callback(reservations)
         for _ in range(config.decode_config.max_completion_tokens):
+            t1 = time.perf_counter()
             if not beam_group.active_beams:
                 break
-
+            t2 = time.perf_counter()
             active_beam_count = len(beam_group.active_beams)
             if reservations > active_beam_count:
                 config.decode_end_callback(reservations - active_beam_count)
                 reservations = active_beam_count
-
+            t3 = time.perf_counter()
             for beam in beam_group.active_beams:
                 req = beam.exec_req
                 req.reset(InferencePhase.DECODE)
                 config.decode_callback(req)
-
+            t4 = time.perf_counter()
             await beam_group.wait()
-            beam_group.process_beams(config.results_callback)
-
+            t5 = time.perf_counter()
+            result_tokens = beam_group.process_beams()
+            t6 = time.perf_counter()
+            intervals = [t2 - t1, t3 - t2, t4 - t3, t5 - t4, t6 - t5]
+            if exec_req.stream:
+                config.results_callback(result_tokens)
+            print(
+                f"Time Intervals: {intervals[0]:.6f} , {intervals[1]:.6f}, {intervals[2]:.6f}, {intervals[3]:.6f}, {intervals[4]:.6f}"
+            )
         config.decode_end_callback(reservations)
         beam_group.clean_up()
 

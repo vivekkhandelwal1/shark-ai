@@ -95,9 +95,14 @@ class BaseTokenSelectionStrategy(ABC):
             np.frombuffer(exec_req.result_logits.items, dtype=np.float16)
         )
         decode_config = token_selection_strategy_config.decode_config
-        # TODO: This is only temporary until streaming is enabled for `MultiGreedy`
-        if decode_config.token_selection_strategy == TokenSelectionStrategy.GREEDY:
-            token_selection_strategy_config.results_callback(token_int)
+        # TODO: This is only temporary until streaming is enabled for `BeamSearch`
+        token_ints = (
+            [[token_int]] * decode_config.num_beams
+            if decode_config.token_selection_strategy
+            == TokenSelectionStrategy.MULTI_GREEDY
+            else [token_int]
+        )
+        token_selection_strategy_config.results_callback(token_ints)
 
         exec_req.input_token_ids.append(token_int)
         exec_req.start_position = len(exec_req.input_token_ids) - 1

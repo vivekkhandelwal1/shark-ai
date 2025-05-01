@@ -91,6 +91,7 @@ class LLMClient:
                     # print(response.json())
                     token_times.append(time.perf_counter())
                     response.raise_for_status()
+                    # print(response.json())
                     # generated_text = response.json()["text"]
 
             return start_time, token_times, generated_text
@@ -288,6 +289,7 @@ async def run_benchmark(
                     "max_completion_tokens": output_token_length,
                     "token_selection_strategy": token_selection_strategy,
                     "num_beams": 8,
+                    "b_of_n": 8,
                 },
                 save_output=False,
             )
@@ -351,6 +353,7 @@ async def continuous_load_test(
                     "max_completion_tokens": output_token_length,
                     "token_selection_strategy": token_selection_strategy,
                     "num_beams": 8,
+                    "b_of_n": 8,
                 },
                 save_output=False,
             )

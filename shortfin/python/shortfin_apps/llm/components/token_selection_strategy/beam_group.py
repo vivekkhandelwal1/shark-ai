@@ -207,7 +207,7 @@ class BeamGroup:
         done_signals = [beam.exec_req.done for beam in self.active_beams]
         return await gather(*done_signals)
 
-    def process_beams(self, results_callback: Callable[[Union[int, List[int]]], None]):
+    def process_beams(self) -> List[List[int]]:
         beam_selections = self.selection_callback(
             self.active_beams, self.completed_beams
         )
@@ -216,6 +216,7 @@ class BeamGroup:
         active_reqs: Set[LlmInferenceExecRequest] = set()
         completed_beams: List[Beam] = []
         completed_reqs: Set[LlmInferenceExecRequest] = set()
+        result_tokens: List[List[int]] = []
 
         for i in range(len(beam_selections)):
             beam = beam_selections[i]
@@ -233,7 +234,9 @@ class BeamGroup:
             else:
                 active_beams.append(beam)
                 active_reqs.add(new_req)
-            results_callback(token)
+                result_tokens.append([token])
+
+        # print(f"Result Tokens: {result_tokens}")
 
         for beam in completed_beams + active_beams:
             beam.update_exec_req()
@@ -247,6 +250,10 @@ class BeamGroup:
 
         self.active_beams = active_beams
         self.completed_beams.extend(completed_beams)
+
+        # print(f"Active Beams: {len(self.active_beams)}")
+        # print(f"Completed Beams: {len(self.completed_beams)}")
+        return result_tokens
 
     def clean_up(self):
         logger.debug(f"Cleaning up {self.beam_group_id}...")

@@ -11,6 +11,7 @@ import json
 import logging
 
 from copy import copy
+import traceback
 from typing import List
 
 import shortfin as sf
@@ -111,6 +112,9 @@ class GenerateItemProcess(sf.Process):
             self.result_token_ids = result
             logger.info(f"Received multi-response: {self.result_token_ids}")
             return
+        # traceback.print_stack()
+        # if result is None:
+        #     return
 
         self._append_token(result)
 
@@ -164,6 +168,15 @@ class ClientGenerateBatchProcess(sf.Process):
             if self.gen_req.sampling_params.b_of_n > 1
             else TokenSelectionStrategy.GREEDY
         )
+        self.decode_config.num_beams = self.gen_req.sampling_params.b_of_n
+        self.decode_config.temperature = self.gen_req.sampling_params.temperature
+        self.decode_config.top_k = self.gen_req.sampling_params.top_k
+        self.decode_config.top_p = self.gen_req.sampling_params.top_p
+        self.decode_config.max_completion_tokens = (
+            self.gen_req.sampling_params.max_completion_tokens
+        )
+
+        print(f"{self.decode_config}")
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
@@ -184,6 +197,7 @@ class ClientGenerateBatchProcess(sf.Process):
             else:
                 input_batch = self.tokenize()
             for index, input_tokens in enumerate(input_batch):
+                print(f"Total tokens: {len(input_tokens)}")
                 decode_config = copy(self.decode_config)
                 decode_config.update_from_sampling_params(
                     self.gen_req.sampling_params
@@ -235,9 +249,10 @@ class ClientGenerateBatchProcess(sf.Process):
 
         for p in gen_processes:
             token_ids = p.result_token_ids
+            logger.info(f"token_ids: {token_ids}")
 
-            if not is_multi_response(self.decode_config.token_selection_strategy):
-                token_ids = [token_ids]
+            # if not is_multi_response(self.decode_config.token_selection_strategy):
+            #     token_ids = [token_ids]
 
             decoded = self.tokenizer.decode(token_ids)
             rs = [GeneratedResponse(d) for d in decoded]
@@ -275,25 +290,43 @@ class ClientGenerateBatchProcess(sf.Process):
         if not self.gen_req.stream:
             return
         out = io.BytesIO()
+        # print(f"gen_process.result_token_ids: {gen_process.result_token_ids}")
+        # print(f"gen_process.streamed_tokens_index: {gen_process.streamed_tokens_index}")
         result_tokens = gen_process.result_token_ids[
             gen_process.streamed_tokens_index :
-        ]
+        ][0]
+
+        result_tokens = (
+            [result_tokens]
+            if self.decode_config.token_selection_strategy
+            == TokenSelectionStrategy.GREEDY
+            else result_tokens
+        )
         rid = (
             gen_process.gen_req.rid
             if gen_process.gen_req.is_single
             else gen_process.gen_req.rid[gen_process.index]
         )
+        print(f"self.gen_req.is_single: {self.gen_req.is_single}")
+        print(f"result_tokens: {result_tokens}")
+        if result_tokens is [None]:
+            return
         if not self.gen_req.return_input_ids:
-            (result_text,) = self.tokenizer.decode([result_tokens])
+            # print(f"Decoding result tokens: {result_tokens}")
+            result_text = self.tokenizer.decode(result_tokens)
+            # print(f"Result text: {result_text}")
             out.write(f"data({rid}): ".encode())
-            out.write(result_text.encode())
+            # Convert the list to a JSON string with ensure_ascii=False to preserve Unicode characters
+            json_response = json.dumps(result_text, ensure_ascii=False)
+            out.write(json_response.encode("utf-8"))
             out.write(b"\n\n")
         else:
+            # print(f"Result tokens: {result_tokens}")
             out.write(f"data({rid}): ".encode())
             out.write(str(result_tokens[0]).encode())
             out.write(b"\n\n")
         self.responder.stream_part(out.getvalue())
-        gen_process.streamed_tokens_index += len(result_tokens)
+        gen_process.streamed_tokens_index += 1  # len(result_tokens)
 
     def tokenize(self) -> list[Encoding]:
         gen_req = self.gen_req
