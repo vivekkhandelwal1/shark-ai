@@ -243,13 +243,16 @@ class LlmSingleProcessServiceManager(LlmServiceManager):
         )
         service = self.service_environment.services[instance_num]
 
+        def response_handler_wrapper(response):
+            response_handler(response)
+            service.remove_from_queue()
+
         # Bridge from the asyncio event loop to the service's worker
 
         async def generate_wrapper():
             batch_proc = ClientGenerateBatchProcess(
-                service, gen_req, response_handler)
-            await asyncio.gather(batch_proc.launch())
-            service.remove_from_queue()
+                service, gen_req, response_handler_wrapper)
+            batch_proc.launch()
 
         asyncio.run_coroutine_threadsafe(
             generate_wrapper(), loop=service.main_worker.loop)
