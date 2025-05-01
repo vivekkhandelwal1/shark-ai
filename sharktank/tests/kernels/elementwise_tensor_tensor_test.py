@@ -32,7 +32,7 @@ class elementwise_tensor_tensor_test(unittest.TestCase):
         shape = [17, 32]
         x = torch.rand(shape, dtype=dtype)
         y = torch.rand(shape, dtype=dtype)
-        one = torch.tensor(1)
+        one = torch.tensor(1.0).float()
         x_layout = TensorScaledLayout(shape=shape, qs=x, d=one)
         x_qtensor = PlanarQuantizedTensor(shape=shape, layout=x_layout)
         y_layout = TensorScaledLayout(shape=shape, qs=y, d=one)
