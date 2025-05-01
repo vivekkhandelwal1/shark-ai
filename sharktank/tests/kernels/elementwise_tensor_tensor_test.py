@@ -40,7 +40,7 @@ class elementwise_tensor_tensor_test(unittest.TestCase):
         result = kernels.elementwise_tensor_tensor(x_qtensor, y_qtensor, torch.mul)
 
         ref = x * y
-        torch.testing.assert_close(result.to(ref_dtype), ref, atol=atol, rtol=rtol)
+        torch.testing.assert_close(result.unpack().dequant(), ref, atol=atol, rtol=rtol)
 
 
 if __name__ == "__main__":
