@@ -274,16 +274,17 @@ def update_norm_layer(
             reciprocal_scale=kv_cache_scale * 2.0,
             dtype=torch.float8_e4m3fnuz,
         )
+    """    
     if "prob_output_scale" in quant_theta(layer_name, "self_attn").keys:
+        print("here")
         prob_output_scale = (
-            quant_theta(layer_name, "self_attn").tensor("prob_output_scale").as_torch()
+            quant_theta(layer_name, "self_attn").tensor("prob_output_scale").as_torch().to(torch.float32)
             * 2.0
         )
         new_name = f"blk.{layer_idx}.attn_scale"
         updated_tensors[new_name] = DefaultPrimitiveTensor(
             name=new_name, data=prob_output_scale
         )
-    """
 
 def single_replace(
     quant_theta: Theta,

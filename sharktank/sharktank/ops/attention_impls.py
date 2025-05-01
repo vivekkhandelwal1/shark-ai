@@ -37,9 +37,33 @@ def _extract_linear_scale(t):
         return t.layout.qs, t.layout.d
     return unbox_tensor(t), None
 
+# TODO: apply similar thing to masked_flash_attention
+def masked_flash_attention(q, k, v, a, prob_output_scale):
+    scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
+
+    q, qscale = _extract_linear_scale(q)
+    k, kscale = _extract_linear_scale(k)
+    v, vscale = _extract_linear_scale(v)
+
+    scale = scale * qscale if qscale is not None else scale
+    scale = scale * kscale if kscale is not None else scale
+
+    if q.dtype == torch.float32:
+        q = q.to(torch.float16)
+
+    if k.dtype == torch.float32:
+        k = k.to(torch.float16)
+
+    if v.dtype == torch.float32:
+        v = v.to(torch.float16)
+
+    atten = kernels.masked_flash_attention(q, k, v, a, scale, prob_output_scale)
+
+    atten = atten * vscale if vscale is not None else atten
+    return atten
 
 # TODO: apply similar thing to masked_flash_attention
-def flash_attention(q, k, v, scale):
+def flash_attention(q, k, v):
     scale = torch.scalar_tensor(1.0 / math.sqrt(q.shape[-1]), dtype=torch.float32)
 
     q, qscale = _extract_linear_scale(q)
@@ -72,7 +96,6 @@ def register_attention_override_by_name(name: str):
             PlanarQuantizedTensor,
             PlanarQuantizedTensor,
             PlanarQuantizedTensor,
-            NoneType,
         )(flash_attention)
     elif name == "masked_flash_attention":
         scaled_dot_product_attention.override(

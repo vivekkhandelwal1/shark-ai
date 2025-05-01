@@ -183,6 +183,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 mask=attention_mask,
                 scale=self.attention_scale,
                 softcap=self.softcap,
+                probs_quantizer=self.probs_quantizer,
             )
 
         attn_output = attn_output.transpose(1, 2)

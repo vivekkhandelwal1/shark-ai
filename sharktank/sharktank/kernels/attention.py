@@ -17,7 +17,7 @@ __all__ = [
 @CustomOp.register(library=LIBRARY)
 class masked_flash_attention(CustomOp):
 
-    signature = "masked_flash_attention(Tensor q, Tensor k, Tensor v, Tensor? a, Tensor scale) -> (Tensor)"
+    signature = "masked_flash_attention(Tensor q, Tensor k, Tensor v, Tensor? a, Tensor scale, Tensor prob_output_scale) -> (Tensor)"
 
     def select(self, ksel: KernelSelection):
         q_desc = ksel.arg_tensor(0)  # Shape b, l, d
@@ -25,6 +25,7 @@ class masked_flash_attention(CustomOp):
         v_desc = ksel.arg_tensor(2)  # Shape b, s, e
         a_desc = ksel.arg_tensor(3)  # Shape b, l, s
         s_desc = ksel.arg_tensor(4)
+        p_desc = ksel.arg_tensor(5)
 
         q_bs = q_desc.t.shape[:-2]
         k_bs = k_desc.t.shape[:-2]
@@ -44,7 +45,8 @@ class masked_flash_attention(CustomOp):
             q_desc.t.dtype.is_floating_point
             and k_desc.t.dtype.is_floating_point
             and v_desc.t.dtype.is_floating_point
-            and s_desc.t.dtype.is_floating_point,
+            and s_desc.t.dtype.is_floating_point
+            and p_desc.t.dtype.is_floating_point,
             lambda: f"flash_attention: Expected floating point",
         )
         torch._check(
@@ -67,7 +69,7 @@ class masked_flash_attention(CustomOp):
         v_desc.specialize_dims(0, 1, -1)
 
         # Result 0: Shape batch..., m, n
-        ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.float32).specialize_dims(
+        ksel.return_new_tensor((*q_bs, q_l, v_e), dtype=torch.bfloat16).specialize_dims(
             0, 1, -1
         )
 
@@ -77,6 +79,7 @@ class masked_flash_attention(CustomOp):
         v = kb.arg_value(2)
         a = kb.arg_value(3)
         scale = kb.arg_value(4)
+        prob_output_scale = kb.arg_value(5)
 
         q_tensor_type = RankedTensorType(q.type)
         scale_tensor_type = RankedTensorType(scale.type)
@@ -93,7 +96,7 @@ class masked_flash_attention(CustomOp):
         scale_type_str = str(scale_tensor_type.element_type)
         a_type_str = str(RankedTensorType(a.type).element_type)
         # TODO: enable f16 output type via arg
-        o_type_str = "f32"
+        o_type_str = "bf16"
 
         target_function_name = f"sharktank_masked_flash_attention_{b1}_{b2}_{d}_{e}_{i_type_str}_{a_type_str}_{scale_type_str}_{o_type_str}"
         kwargs = {
@@ -117,7 +120,7 @@ class masked_flash_attention(CustomOp):
             target_function_name,
             **kwargs,
         )
-        kb.yield_results(*call_function(target_function, q, k, v, scale, a))
+        kb.yield_results(*call_function(target_function, q, k, v, scale, a, prob_output_scale))
         pass
 
 
@@ -184,6 +187,10 @@ class flash_attention(CustomOp):
 
         _, _, l, d = q_tensor_type.shape
         _, _, s, e = v_tensor_type.shape
+
+        # Unspecialized dims will be negative
+        l = l if l >= 0 else "?"
+        s = s if s >= 0 else "?"
 
         i_type_str = str(q_tensor_type.element_type)
         scale_type_str = str(scale_tensor_type.element_type)

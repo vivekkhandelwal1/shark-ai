@@ -413,15 +413,17 @@ class PagedAttention:
             return ops.matmul(attn_weights, v)  # (bs, heads, slen, head_dim)
         elif attention_kernel == "sharktank":
             if mask is not None:
-                attn_output = kernels.masked_flash_attention(
+                if probs_quantizer is None:
+                    raise ValueError("Requires probs quantizer")
+                attn_output = ops.attention_impls.masked_flash_attention(
                     q,
                     k,
                     v,
                     mask[0, 0, :, :],
-                    torch.tensor(1 / math.sqrt(self.attn_head_dim)),
+                    probs_quantizer.scale,
                 )
             else:
-                attn_output = kernels.flash_attention(q, k, v)
+                attn_output = ops.attention_impls.flash_attention(q, k, v)
             return attn_output
         else:
             # Non-decomposed
@@ -455,6 +457,7 @@ class PagedAttention:
         softcap: Optional[float] = None,
         scale: Optional[float] = None,
         mask: Optional[torch.Tensor] = None,
+        probs_quantizer: Optional[StaticScaledQuantizer] = None,
     ):
         # Write our one updated cache row into the cache.
         self.write_timestep(
@@ -487,6 +490,7 @@ class PagedAttention:
             softcap=softcap,
             scale=scale,
             mask=mask,
+            probs_quantizer=probs_quantizer,
         )
 
     def forward_prefill(

@@ -258,7 +258,9 @@ def torch_tensor_to_device_array(
     tensor: torch.Tensor, device: iree.runtime.HalDevice
 ) -> iree.runtime.DeviceArray:
     if tensor.dtype in halelementtype_map.keys():
-        tensor_as_int16 = tensor.view(dtype=torch.int16)
+        print("branch 1")
+        print(tensor.dtype)
+        tensor_as_int16 = tensor.to(dtype=torch.int16)
         device_array_as_int16 = iree.runtime.asdevicearray(
             device, unbox_tensor(tensor_as_int16).to("cpu").detach().numpy()
         )
@@ -268,7 +270,7 @@ def torch_tensor_to_device_array(
             element_type=halelementtype_map[tensor.dtype],
         )
         return iree.runtime.DeviceArray(device, buffer_view)
-
+    print("branch 2")
     return iree.runtime.asdevicearray(
         device, unbox_tensor(tensor).to("cpu").detach().numpy()
     )

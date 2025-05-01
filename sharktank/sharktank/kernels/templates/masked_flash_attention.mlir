@@ -9,9 +9,10 @@
 !v_type = tensor<{{b1}}x{{b2}}x{{s}}x{{e}}x{{i_dtype}}>
 !a_type = tensor<{{l}}x{{s}}x{{a_dtype}}>
 !trans_v_type = tensor<{{b1}}x{{b2}}x{{e}}x{{s}}x{{i_dtype}}>
-!o_type = tensor<{{b1}}x{{b2}}x{{l}}x{{e}}x{{o_dtype}}>
-!o_dyn_type = tensor<?x?x?x{{o_dtype}}>
-!o_collapsed_type = tensor<{{b}}x{{l}}x{{e}}x{{o_dtype}}>
+!output_type = tensor<{{b1}}x{{b2}}x{{l}}x{{e}}x{{o_dtype}}>
+!o_type = tensor<{{b1}}x{{b2}}x{{l}}x{{e}}xf32>
+!o_dyn_type = tensor<?x?x?xf32>
+!o_collapsed_type = tensor<{{b}}x{{l}}x{{e}}xf32>
 !q_collapsed_type = tensor<{{b}}x{{l}}x{{d}}x{{i_dtype}}>
 !k_collapsed_type = tensor<{{b}}x{{s}}x{{d}}x{{i_dtype}}>
 !v_collapsed_type = tensor<{{b}}x{{s}}x{{e}}x{{i_dtype}}>
@@ -25,7 +26,8 @@ util.func private @{{func_name}}(
     %k: !k_type,
     %v: !v_type,
     %s: !s_type,
-    %a: !a_type) -> !o_type {
+    %a: !a_type,
+    %p: !s_type) -> !output_type {
 
         %c0 = arith.constant 0 : index
         %c1 = arith.constant 1 : index
@@ -38,6 +40,7 @@ util.func private @{{func_name}}(
         %e = tensor.dim %v, %c3 : !v_type
 
         %scale = tensor.extract %s[] : !s_type
+        %prob_output_scale = tensor.extract %p[] : !s_type
         %empty_dyn = tensor.empty(%b0, %l, %e) : !o_dyn_type
         %empty = tensor.cast %empty_dyn : !o_dyn_type to !o_collapsed_type
 
@@ -50,13 +53,25 @@ util.func private @{{func_name}}(
                     affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d3)>,
                     affine_map<(d0, d1, d2, d3, d4) -> (d0, d4, d2)>,
                     affine_map<(d0, d1, d2, d3, d4) -> ()>,
+                    affine_map<(d0, d1, d2, d3, d4) -> ()>,
                     affine_map<(d0, d1, d2, d3, d4) -> (d1, d4)>,
                     affine_map<(d0, d1, d2, d3, d4) -> (d0, d1, d2)>]}
-                    ins(%collapsed_q, %collapsed_k, %collapsed_v, %scale, %a : !q_collapsed_type, !k_collapsed_type, !v_collapsed_type, {{scale_dtype}}, !a_collapsed_type) outs(%empty : !o_collapsed_type) {
-                      ^bb0(%score: {{o_dtype}}):
-                        iree_linalg_ext.yield %score : {{o_dtype}}
+                    ins(%collapsed_q, %collapsed_k, %collapsed_v, %scale : !q_collapsed_type, !k_collapsed_type, !v_collapsed_type, {{scale_dtype}}) probOutputScale(%prob_output_scale : {{scale_dtype}}) mask(%a : !a_collapsed_type)  outs(%empty : !o_collapsed_type) {
+                      ^bb0(%score: f32):
+                        iree_linalg_ext.yield %score : f32
                     } -> !o_collapsed_type
         %expanded_o = tensor.expand_shape %atten [[0,1], [2], [3]] output_shape [{{b1}}, {{b2}}, %l, %e] : !o_collapsed_type into !o_type
-        util.return %expanded_o : !o_type
+        %atten_trunc_empty = tensor.empty(%l) : !output_type
+        %atten_trunc = linalg.generic {
+          indexing_maps = [affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>,
+          affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>],
+            iterator_types = ["parallel", "parallel", "parallel", "parallel"] }
+            ins(%expanded_o : !o_type)
+            outs(%atten_trunc_empty : !output_type) {
+        ^bb0(%in: f32, %out: {{o_dtype}}):
+            %trunc = arith.truncf %in : f32 to {{o_dtype}}
+            linalg.yield %trunc : {{o_dtype}}
+        } -> !output_type
+        util.return %atten_trunc : !output_type
     }
 }
