@@ -37,7 +37,7 @@ class elementwise_tensor_tensor_test(unittest.TestCase):
         x_qtensor = PlanarQuantizedTensor(shape=shape, layout=x_layout)
         y_layout = TensorScaledLayout(shape=shape, qs=y, d=one)
         y_qtensor = PlanarQuantizedTensor(shape=shape, layout=y_layout)
-        result = kernels.elementwise_tensor_tensor(torch.mul, x_qtensor, y_qtensor)
+        result = kernels.elementwise_tensor_tensor(x_qtensor, y_qtensor, torch.mul)
 
         ref = x * y
         torch.testing.assert_close(result.to(ref_dtype), ref, atol=atol, rtol=rtol)

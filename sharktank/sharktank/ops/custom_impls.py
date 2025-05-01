@@ -84,8 +84,6 @@ def elementwise_binary(operator, x, y, *args, **kwargs):
         scale *= unpacked_y._d
         if not isinstance(unpacked_y, TensorScaledLayout) or unpacked_y._m:
             return NotImplemented
-    if isinstance(y, Number):
-        return NotImplemented
 
     new_qs = elementwise_tensor_tensor(x, inp_y, operator_map[operator])
     layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=scale)
