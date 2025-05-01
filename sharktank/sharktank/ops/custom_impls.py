@@ -61,6 +61,7 @@ operator_map = {
     torch.mul: "mul",
 }
 
+
 @elementwise.override(
     AllOfExprs(IsOfType(QuantizedTensor), IsOfType(Tensor, QuantizedTensor))
 )
