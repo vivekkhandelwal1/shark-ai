@@ -46,9 +46,6 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
             responder.ensure_response()
 
     service_manager: LlmServiceManager = request.app.state.service_manager
-    print("generate_request: awaiting send_request")
     await service_manager.send_request(gen_req, response_handler)
-    print("generate_request: awaiting response")
     response = await responder.response
-    print("generate_request: response received")
     return response
