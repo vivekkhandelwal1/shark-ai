@@ -23,12 +23,11 @@ class elementwise_tensor_tensor_test(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (torch.float32, torch.float32, 1e-2, 1e-3),
-            (torch.float32, torch.float32, 1e-2, 1e-3),
-            (torch.float16, torch.float32, 1e-2, 1e-3),
+            (torch.float32, 1e-2, 1e-3),
+            (torch.float16, 1e-2, 1e-3),
         ]
     )
-    def test_mul(self, dtype, ref_dtype, atol, rtol):
+    def test_mul_basic(self, dtype, atol, rtol):
         shape = [17, 32]
         x = torch.rand(shape, dtype=dtype)
         y = torch.rand(shape, dtype=dtype)
@@ -40,6 +39,29 @@ class elementwise_tensor_tensor_test(unittest.TestCase):
         result = ops.elementwise(torch.mul, x_qtensor, y_qtensor)
 
         ref = x * y
+        torch.testing.assert_close(result.unpack().dequant(), ref, atol=atol, rtol=rtol)
+
+    @parameterized.expand(
+        [
+            (torch.float32, 1e-2, 1e-3),
+            (torch.float16, 1e-2, 1e-3),
+        ]
+    )
+    def test_mul_broadcast(self, dtype, atol, rtol):
+        shapex = [2, 3, 1]
+        shapey = [1, 3, 5]
+        x = torch.rand(shapex, dtype=dtype)
+        y = torch.rand(shapey, dtype=dtype)
+        one = torch.tensor(1.0).to(dtype=dtype)
+        x_layout = TensorScaledLayout(shape=shapex, qs=x, d=one)
+        x_qtensor = PlanarQuantizedTensor(shape=shapex, layout=x_layout)
+        y_layout = TensorScaledLayout(shape=shapey, qs=y, d=one)
+        y_qtensor = PlanarQuantizedTensor(shape=shapey, layout=y_layout)
+        result = ops.elementwise(torch.mul, x_qtensor, y_qtensor)
+
+        ref = x * y
+        print(ref)
+        print(result.unpack().dequant())
         torch.testing.assert_close(result.unpack().dequant(), ref, atol=atol, rtol=rtol)
 
 
