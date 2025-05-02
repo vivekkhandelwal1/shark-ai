@@ -39,10 +39,10 @@ class elementwise_tensor_tensor(CustomOp):
     def generate(self, ksel: KernelSelection, kb: KernelBuilder):
         x = kb.arg_value(0)
         x_tensor_type = RankedTensorType(x.type)
-        op_str = ksel.arg_descs[3].v
+        op_str = ksel.arg_descs[2].v
 
         rank = x_tensor_type.rank
-        element_type = x_tensor_type.dtype
+        element_type = x_tensor_type.element_type
 
         template_file = "elementwise_tensor_tensor.mlir"
         target_function_name = (
