@@ -143,16 +143,6 @@ class LlmServiceProcess(multiprocessing.Process):
         self.service_environment.start()
         print(f"LlmServiceProcess {self.name} ready")
 
-        async def generate_wrapper(request: GenerateReqInput, response_counter: int):
-            def response_handler(response):
-                # print(f"LlmServiceProcess {self.name} sending response packet {response_counter}")
-                self.response_queue.put((response_counter, response))
-                self.service.remove_from_queue()
-
-            batch_proc = ClientGenerateBatchProcess(
-                self.service, request, response_handler)
-            batch_proc.launch()
-
         while True:
             request_packet: Tuple[int, GenerateReqInput] = self.request_queue.get()
             self.request_queue.task_done()
@@ -169,8 +159,13 @@ class LlmServiceProcess(multiprocessing.Process):
                 logger.warning(f"Queue full, dropping request {request_counter}: {request}")
                 continue
 
-            asyncio.run_coroutine_threadsafe(
-                generate_wrapper(request, request_counter), loop=self.service.main_worker.loop)
+            def response_handler(response, response_counter=request_counter):
+                # print(f"LlmServiceProcess {self.name} sending response packet {response_counter}")
+                self.response_queue.put((response_counter, response))
+                self.service.remove_from_queue()
+
+            ClientGenerateBatchProcess(
+                self.service, request, response_handler).launch()
             # Don't wait for it to finish! response_handler should take care of
             # notifying when the response is ready. Waiting here increases
             # latency
@@ -248,19 +243,12 @@ class LlmSingleProcessServiceManager(LlmServiceManager):
         )
         service = self.service_environment.services[instance_num]
 
-        def response_handler_wrapper(response):
+        def response_handler_wrapper(response, service=service):
             response_handler(response)
             service.remove_from_queue()
 
-        # Bridge from the asyncio event loop to the service's worker
-
-        async def generate_wrapper():
-            batch_proc = ClientGenerateBatchProcess(
-                service, gen_req, response_handler_wrapper)
-            batch_proc.launch()
-
-        asyncio.run_coroutine_threadsafe(
-            generate_wrapper(), loop=service.main_worker.loop)
+        ClientGenerateBatchProcess(
+                service, gen_req, response_handler_wrapper).launch()
         # Don't wait for it to finish! response_handler should take care of
         # notifying when the response is ready. Waiting here increases latency
 
