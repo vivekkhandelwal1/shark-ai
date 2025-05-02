@@ -4,6 +4,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import os
+
 import torch
 import torch.nn as nn
 
@@ -18,7 +20,7 @@ from .layers import *
 class Unet2DConditionModel(ThetaLayer):
     @classmethod
     def from_dataset(cls, ds: Dataset) -> "Unet2DConditionModel":
-        hp = HParams.from_dict(ds.properties["hparams"])
+        hp = PunetModelConfig.from_dict(ds.properties["hparams"])
         return cls(hp, ds.root_theta)
 
     @classmethod
@@ -26,7 +28,7 @@ class Unet2DConditionModel(ThetaLayer):
         ds = Dataset.load(irpa_path, file_type="irpa")
         return cls.from_dataset(ds)
 
-    def __init__(self, hp: HParams, theta: Theta):
+    def __init__(self, hp: PunetModelConfig, theta: Theta):
         super().__init__(theta)
         self.hp = hp
         # We don't support the full parameterization of the diffusers model, so guard
@@ -360,11 +362,40 @@ class Unet2DConditionModel(ThetaLayer):
         )
 
 
-class ClassifierFreeGuidanceUnetModel(torch.nn.Module):
+class ClassifierFreeGuidanceUnetModel(BaseLayer):
     def __init__(self, cond_model: Unet2DConditionModel):
         super().__init__()
         self.cond_model = cond_model
+    
+    def sample_inputs(self, batch_size: int, function: str, height: int = 1024, width: int = 1024, max_length = 64):
+        dtype = torch.float16
+        init_batch_dim = 2
+        # For classifier free guidance, batch dim multiplies by 2.
 
+        sample = (
+            batch_size,
+            4,
+            height // 8,
+            width // 8,
+        )
+        prompt_embeds_shape = (init_batch_dim * batch_size, max_length, 2048)
+        text_embeds_shape = (init_batch_dim * batch_size, 1280)
+        time_ids_shape = (init_batch_dim * batch_size, 6)
+
+        standalone_punet_inputs_dict = {
+            "sample": torch.rand(sample, dtype=dtype),
+            "timestep": torch.zeros(1, dtype=dtype),
+            "encoder_hidden_states": torch.rand(prompt_embeds_shape, dtype=dtype),
+            "text_embeds": torch.rand(text_embeds_shape, dtype=dtype),
+            "time_ids": torch.zeros(time_ids_shape, dtype=dtype),
+            "guidance_scale": torch.tensor([7.5], dtype=dtype),
+        }
+        match function:
+            case "forward":
+                return None, standalone_punet_inputs_dict
+            case _:
+                raise NotImplementedError(function)
+    
     def forward(
         self, *, sample: torch.Tensor, guidance_scale: torch.Tensor, **cond_kwargs
     ):
@@ -375,3 +406,155 @@ class ClassifierFreeGuidanceUnetModel(torch.nn.Module):
             noise_pred_text - noise_pred_uncond
         )
         return noise_pred
+
+class ClassifierFreeGuidanceScheduledUnetModel(BaseLayer):
+    def __init__(
+        self,
+        cond_model: Unet2DConditionModel,
+        scheduler_model: nn.Module,
+        height: int = 1024,
+        width: int = 1024,
+        max_length: int = 64,
+        batch_size: int = 1,
+        dtype: str = "fp16",
+    ):
+        super().__init__()
+        self.dtype = dtype
+        self.cond_model = cond_model
+        self.scheduler = scheduler_model
+        self.height = height
+        self.width = width
+        self.batch_size = batch_size
+        self.max_length = max_length
+        self.do_classifier_free_guidance = True
+
+        # Preprocess timestep calculations so that we can embed timesteps/sigmas.
+        timesteps = [torch.empty((100), dtype=dtype, requires_grad=False)] * 100
+        sigmas = [torch.empty((100), dtype=torch.float32, requires_grad=False)] * 100
+        for i in range(1, 100):
+            self.scheduler.set_timesteps(i)
+            timesteps[i] = torch.nn.functional.pad(
+                self.scheduler.timesteps.clone().detach(), (0, 100 - i), "constant", 0
+            )
+            sigmas[i] = torch.nn.functional.pad(
+                self.scheduler.sigmas.clone().detach(),
+                (0, 100 - (i + 1)),
+                "constant",
+                0,
+            )
+        self.timesteps = torch.stack(timesteps, dim=0).clone().detach()
+        self.sigmas = torch.stack(sigmas, dim=0).clone().detach()
+
+    def sample_inputs(self, function: str):
+        dtype = torch.float16
+
+        # For classifier free guidance, batch dim is doubled.
+        init_batch_dim = 2
+
+        sample = (
+            self.batch_size,
+            4,
+            self.height // 8,
+            self.width // 8,
+        )
+        prompt_embeds_shape = (init_batch_dim * self.batch_size, self.max_length, 2048)
+        text_embeds_shape = (init_batch_dim * self.batch_size, 1280)
+        time_ids_shape = (init_batch_dim * self.batch_size, 6)
+
+        init_inputs = (
+            torch.rand(sample, dtype=dtype),
+            torch.tensor([10], dtype=torch.int64),
+        )
+        forward_inputs = (
+            torch.rand(sample, dtype=dtype),
+            torch.rand(prompt_embeds_shape, dtype=dtype),
+            torch.rand(text_embeds_shape, dtype=dtype),
+            torch.rand(time_ids_shape, dtype=dtype),
+            torch.tensor([7.5], dtype=dtype),
+            torch.tensor([10], dtype=torch.int64),
+            torch.rand(100, dtype=torch.float32),
+            torch.rand(100, dtype=torch.float32),
+        )
+        match function:
+            case "forward":
+                return forward_inputs, None
+            case "initialize":
+                return init_inputs, None
+            case _:
+                raise NotImplementedError(function)
+            
+    def initialize(self, sample, num_inference_steps):
+        height = self.height
+        width = self.width
+        original_size = (height, width)
+        target_size = (height, width)
+        crops_coords_top_left = (0, 0)
+        add_time_ids = list(original_size + crops_coords_top_left + target_size)
+        add_time_ids = torch.tensor([add_time_ids], dtype=self.dtype)
+        if self.do_classifier_free_guidance:
+            add_time_ids = torch.cat([add_time_ids] * 2, dim=0)
+            add_time_ids = add_time_ids.repeat(self.batch_size, 1).type(self.dtype)
+        max_sigma = self.sigmas[num_inference_steps].max()
+        init_noise_sigma = (max_sigma**2 + 1) ** 0.5
+        sample = sample * init_noise_sigma
+        return (
+            sample.type(self.dtype),
+            add_time_ids,
+            self.timesteps[num_inference_steps].squeeze(0),
+            self.sigmas[num_inference_steps].squeeze(0),
+        )
+
+    def scale_model_input(self, sample, i, timesteps, sigmas):
+        sigma = sigmas[i]
+        next_sigma = sigmas[i + 1]
+        t = timesteps[i]
+        latent_model_input = sample / ((sigma**2 + 1) ** 0.5)
+        return (
+            latent_model_input.type(self.dtype),
+            t.type(self.dtype),
+            sigma.type(self.dtype),
+            next_sigma.type(self.dtype),
+        )
+
+    def step(self, noise_pred, sample, sigma, next_sigma):
+        sample = sample.to(torch.float32)
+        gamma = 0.0
+        noise_pred = noise_pred.to(torch.float32)
+        sigma_hat = sigma * (gamma + 1)
+        pred_original_sample = sample - sigma_hat * noise_pred
+        deriv = (sample - pred_original_sample) / sigma_hat
+        dt = next_sigma - sigma_hat
+        prev_sample = sample + deriv * dt
+        return prev_sample.type(self.dtype)
+
+    def forward(
+        self,
+        latents,
+        prompt_embeds,
+        text_embeds,
+        time_ids,
+        guidance_scale,
+        step_index,
+        timesteps,
+        sigmas,
+    ):
+        latent_model_input = torch.cat([latents] * 2)
+
+        latent_model_input, t, sigma, next_sigma = self.scale_model_input(
+            latent_model_input, step_index, timesteps, sigmas
+        )
+
+        noise_pred = self.cond_model.forward(
+            sample=latent_model_input,
+            timestep=t,
+            encoder_hidden_states=prompt_embeds,
+            time_ids=time_ids,
+            text_embeds=text_embeds,
+        )
+
+        noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+        noise_pred = noise_pred_uncond + guidance_scale * (
+            noise_pred_text - noise_pred_uncond
+        )
+        sample = self.step(noise_pred, latents, sigma, next_sigma)
+        return sample

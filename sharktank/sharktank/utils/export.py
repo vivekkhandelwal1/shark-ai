@@ -12,11 +12,12 @@ import torch
 from torch.utils._pytree import PyTree, _is_leaf
 
 import iree.turbine.aot as aot
-from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder
+from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder, externalize_module_parameters, decompositions
 from torch.utils._pytree import tree_structure, tree_unflatten, tree_flatten
+from torch import nn
 from sharktank.types.tensors import ShardedTensor
 from sharktank.types.theta import mark_export_external_theta
-from sharktank.layers import BaseLayer, ThetaLayer
+from sharktank.layers import BaseLayer, ThetaLayer, ModelConfig
 
 
 def flatten_signature(
@@ -185,6 +186,7 @@ def export_model_mlir(
     *,
     function_batch_sizes_map: Optional[dict[Optional[str], list[int]]] = None,
     batch_sizes: Optional[list[int]] = None,
+    decomp_attn: Optional[bool] = False,
 ):
     """Export a model with no dynamic dimensions.
 
@@ -211,24 +213,38 @@ def export_model_mlir(
     if function_batch_sizes_map is None and batch_sizes is None:
         function_batch_sizes_map = {None: batch_sizes}
 
-    fxb = FxProgramsBuilder(model)
+    decomp_list = [torch.ops.aten.logspace]
+    if decomp_attn == True:
+        decomp_list = [
+            torch.ops.aten._scaled_dot_product_flash_attention_for_cpu,
+            torch.ops.aten._scaled_dot_product_flash_attention.default,
+            torch.ops.aten.scaled_dot_product_attention.default,
+            torch.ops.aten.scaled_dot_product_attention,
+        ]
+    with decompositions.extend_aot_decompositions(
+        from_current=True,
+        add_ops=decomp_list,
+    ):
+        fxb = FxProgramsBuilder(model)
 
-    for function, batch_sizes in function_batch_sizes_map.items():
-        for batch_size in batch_sizes:
-            args, kwargs = model.sample_inputs(batch_size, function)
-            dynamic_shapes = model.dynamic_shapes_for_export(
-                batch_size=batch_size, function=function
-            )
+        for function, batch_sizes in function_batch_sizes_map.items():
+            if not function:
+                function = "forward"
+            for batch_size in batch_sizes:
+                args, kwargs = model.sample_inputs(batch_size, function)
+                dynamic_shapes = model.dynamic_shapes_for_export(
+                    batch_size=batch_size, function=function
+                )
 
-            @fxb.export_program(
-                name=f"{function or 'forward'}_bs{batch_size}",
-                args=args,
-                kwargs=kwargs,
-                dynamic_shapes=dynamic_shapes,
-                strict=False,
-            )
-            def _(model, **kwargs):
-                return model(**kwargs)
+                @fxb.export_program(
+                    name=f"{function}_bs{batch_size}",
+                    args=args,
+                    kwargs=kwargs,
+                    dynamic_shapes=dynamic_shapes,
+                    strict=False,
+                )
+                def _(model, **kwargs):
+                    return getattr(model, function)(**kwargs)
 
-    output = aot.export(fxb)
-    output.save_mlir(output_path)
+        output = aot.export(fxb)
+        output.save_mlir(output_path)

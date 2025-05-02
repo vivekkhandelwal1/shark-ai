@@ -15,13 +15,15 @@ from dataclasses import dataclass
 import inspect
 import warnings
 
+from sharktank.layers.configs import ModelConfig
+
 __all__ = [
-    "HParams",
+    "PunetModelConfig",
 ]
 
 
 @dataclass
-class HParams:
+class PunetModelConfig(ModelConfig):
     # Per block sequences. These are normalized from either an int (duplicated
     # to the number of down_blocks) or a list.
     layers_per_block: Tuple[int]
@@ -66,6 +68,7 @@ class HParams:
     use_linear_projection: bool = False
 
     def __post_init__(self):
+        super().__post_init__()
         # Normalize some.
         if self.upcast_attention is None:
             self.upcast_attention = False
