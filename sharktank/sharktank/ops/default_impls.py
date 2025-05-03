@@ -436,12 +436,11 @@ def rms_norm_QuantizedTensor(x, weight, *, epsilon: float, orig_dtype: Union[Non
     output = elementwise(torch.mul, weight, to(output, orig_dtype))
 
     unpacked = tensor.unpack()
-    if isinstance(unpacked, TensorScaledLayout):
+    if not isinstance(unpacked, TensorScaledLayout):
         new_qs = unpacked._qs.view(shape)
         layout = TensorScaledLayout(shape=shape, d=unpacked._d, qs=new_qs, m=unpacked._m)
         return PlanarQuantizedTensor(shape=shape, layout=layout)
-    elif isinstance(unpacked, BlockScaledI4Layout):
-        bs = 16
+    return NotImplemented
 
 @rms_norm.override(Tensor, QuantizedTensor)
 def rms_norm_Tensor_QuantizedTensor(

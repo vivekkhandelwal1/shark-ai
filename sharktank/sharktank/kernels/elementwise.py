@@ -16,7 +16,7 @@ __all__ = [
 @CustomOp.register(library=LIBRARY)
 class elementwise_tensor(CustomOp):
     """TODO"""
-    signature = "elementwise_tensor(Tensorx, str op) -> (Tensor)"
+    signature = "elementwise_tensor(Tensor x, str op) -> (Tensor)"
 
     def select(self, ksel: KernelSelection):
         x_desc = ksel.arg_tensor(0)
@@ -34,7 +34,7 @@ class elementwise_tensor(CustomOp):
 
         template_file = "elementwise_tensor.mlir"
         target_function_name = (
-            f"sharktank_elementwisetensor_{op_str}_{rank}_{element_type}"
+            f"sharktank_elementwise_tensor_{op_str}_{rank}_{element_type}"
         )
 
         target_function = inline_template_function(

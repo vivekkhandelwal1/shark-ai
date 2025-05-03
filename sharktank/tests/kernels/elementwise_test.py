@@ -64,7 +64,7 @@ class elementwise_tensor_tensor_test(unittest.TestCase):
         print(result.unpack().dequant())
         torch.testing.assert_close(result.unpack().dequant(), ref, atol=atol, rtol=rtol)
 
-class elementwise_tensor_test(unitest.TestCase):
+class elementwise_tensor_test(unittest.TestCase):
     def setUp(self):
         torch.manual_seed(42)
 
@@ -84,7 +84,7 @@ class elementwise_tensor_test(unitest.TestCase):
         result = ops.elementwise(torch.square, x_qtensor)
 
         ref = torch.square(x)
-        torch.testing.assert_close(result.unpack_dequant(), ref, atol=atol, rtol=rtol)
+        torch.testing.assert_close(result.unpack().dequant(), ref, atol=atol, rtol=rtol)
 
 
 if __name__ == "__main__":

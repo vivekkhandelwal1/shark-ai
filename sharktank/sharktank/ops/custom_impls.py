@@ -13,6 +13,7 @@ import torch
 
 from sharktank.kernels import (
     elementwise_tensor_tensor,
+    elementwise_tensor,
     einsum_2args_q4,
     mmt_block_scaled_offset_q4_unsigned,
     mmt_block_scaled_q8,
@@ -60,6 +61,9 @@ operator_map = {
     torch.add: "add",
     torch.mul: "mul",
     torch.square: "square",
+    torch.rsqrt: "rsqrt",
+    torch.sqrt: "sqrt",
+
 }
 
 @elementwise.override(QuantizedTensor)
@@ -68,13 +72,13 @@ def elementwise_unary(operator, x, *args, **kwargs):
         return NotImplemented
     unpacked_x = x.unpack()
     scale = unpacked_x._d
-    print("args: ", args)
-    print("kwargs: ", kwargs)
     # Currently only supports TensorScaledLayouts 
     if not isinstance(unpacked_x, TensorScaledLayout) or unpacked_x._m:
-        return Notimplemented
+        return NotImplemented
     new_qs = elementwise_tensor(unpacked_x._qs, operator_map[operator])
-    layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=scale)
+    # Only correct for square, rsqrt, and sqrt
+    d = operator(scale)
+    layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=d)
     return PlanarQuantizedTensor(shape=x.shape, layout=layout)
 
 @elementwise.override(
