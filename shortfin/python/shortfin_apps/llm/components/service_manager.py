@@ -181,7 +181,7 @@ class LlmServiceManager:
 
     def __init__(self, args):
         self.args = args
-        self.cur_instance_num = -1
+        self.cur_instance_num = 0
         self.request_counter = 0
         self.num_instances = 0
 
@@ -230,7 +230,10 @@ class LlmSingleProcessServiceManager(LlmServiceManager):
 
     async def send_request(self, gen_req: GenerateReqInput, response_handler: callable):
         self.request_counter += 1
-        instance_num = self.get_next_instance_num()
+        # instance_num = self.get_next_instance_num()
+        # Fill up the queue of the current instance first, so that the batcher
+        # can dispatch a batch ASAP
+        instance_num = self.cur_instance_num
         while not self.service_environment.services[instance_num].add_to_queue():
             instance_num = self.get_next_instance_num()
             await asyncio.sleep(0.001)
@@ -354,7 +357,10 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
         # if another request is sent
         request_counter = self.request_counter
 
-        instance_num = self.get_next_instance_num()
+        # instance_num = self.get_next_instance_num()
+        # Fill up the queue of the current instance first, so that the batcher
+        # can dispatch a batch ASAP
+        instance_num = self.cur_instance_num
         while not self.instances[instance_num].add_to_queue():
             instance_num = self.get_next_instance_num()
             await asyncio.sleep(0.001)

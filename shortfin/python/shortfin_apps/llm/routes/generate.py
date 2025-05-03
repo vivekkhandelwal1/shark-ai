@@ -24,14 +24,15 @@ async def generate_request(gen_req: GenerateReqInput, request: Request):
 
     gen_req.post_init()
     responder = FastAPIResponder(request)
+    responder.start_response()
     is_streaming: bool = gen_req.stream
 
-    def response_handler(response: bytes | list[bytes]):
+    def response_handler(response: bytes | list[bytes],
+                         responder=responder, is_streaming=is_streaming):
         """
         Converts a raw response from the service into a format suitable for
         FastAPIResponder.
         """
-        responder.start_response()
         try:
             if is_streaming:
                 responder.stream_start()
