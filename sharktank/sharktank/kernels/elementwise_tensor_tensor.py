@@ -10,8 +10,42 @@ import torch
 
 __all__ = [
     "elementwise_tensor_tensor",
+    "elementwise_tensor",
 ]
 
+@CustomOp.register(library=LIBRARY)
+class elementwise_tensor(CustomOp):
+    """TODO"""
+    signature = "elementwise_tensor(Tensorx, str op) -> (Tensor)"
+
+    def select(self, ksel: KernelSelection):
+        x_desc = ksel.arg_tensor(0)
+        op_str = ksel.attr_str(1).v
+
+        ksel.return_new_tensor(x_desc.t.shape, dtype=x_desc.t.dtype)
+
+    def generate(self, ksel: KernelSelection, kb: KernelBuilder):
+        x = kb.arg_value(0)
+        x_tensor_type = RankedTensorType(x.type)
+        op_str = ksel.arg_descs[1].v
+
+        rank = x_tensor_type.rank
+        element_type = x_tensor_type.element_type
+
+        template_file = "elementwise_tensor.mlir"
+        target_function_name = (
+            f"sharktank_elementwisetensor_{op_str}_{rank}_{element_type}"
+        )
+
+        target_function = inline_template_function(
+            kb,
+            template_file,
+            target_function_name,
+            op_str=op_str,
+            rank=rank,
+            dtype=element_type,
+        )
+        kb.yield_results(*call_function(target_function, *kb.arg_bindings))
 
 @CustomOp.register(library=LIBRARY)
 class elementwise_tensor_tensor(CustomOp):

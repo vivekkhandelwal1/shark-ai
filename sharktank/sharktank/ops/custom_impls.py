@@ -59,8 +59,23 @@ from ._registry import NotOfType
 operator_map = {
     torch.add: "add",
     torch.mul: "mul",
+    torch.square: "square",
 }
 
+@elementwise.override(QuantizedTensor)
+def elementwise_unary(operator, x, *args, **kwargs):
+    if operator not in operator_map.keys():
+        return NotImplemented
+    unpacked_x = x.unpack()
+    scale = unpacked_x._d
+    print("args: ", args)
+    print("kwargs: ", kwargs)
+    # Currently only supports TensorScaledLayouts 
+    if not isinstance(unpacked_x, TensorScaledLayout) or unpacked_x._m:
+        return Notimplemented
+    new_qs = elementwise_tensor(unpacked_x._qs, operator_map[operator])
+    layout = TensorScaledLayout(shape=x.shape, qs=new_qs, d=scale)
+    return PlanarQuantizedTensor(shape=x.shape, layout=layout)
 
 @elementwise.override(
     AllOfExprs(IsOfType(QuantizedTensor), IsOfType(Tensor, QuantizedTensor))

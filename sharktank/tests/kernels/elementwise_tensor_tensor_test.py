@@ -64,6 +64,28 @@ class elementwise_tensor_tensor_test(unittest.TestCase):
         print(result.unpack().dequant())
         torch.testing.assert_close(result.unpack().dequant(), ref, atol=atol, rtol=rtol)
 
+class elementwise_tensor_test(unitest.TestCase):
+    def setUp(self):
+        torch.manual_seed(42)
+
+    @parameterized.expand(
+        [
+            (torch.float32, 1e-2, 1e-3),
+            (torch.float16, 1e-2, 1e-3),
+        ]
+    )
+
+    def test_square(self, dtype, atol, rtol):
+        shape = [3, 7, 17]
+        x = torch.rand(shape, dtype=dtype)
+        one = torch.tensor(1.0).to(dtype)
+        x_layout = TensorScaledLayout(shape=shape, qs=x, d=one)
+        x_qtensor = PlanarQuantizedTensor(shape=shape, layout=x_layout)
+        result = ops.elementwise(torch.square, x_qtensor)
+
+        ref = torch.square(x)
+        torch.testing.assert_close(result.unpack_dequant(), ref, atol=atol, rtol=rtol)
+
 
 if __name__ == "__main__":
     unittest.main()
