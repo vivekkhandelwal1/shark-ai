@@ -114,9 +114,8 @@ class LlmGenerateService(GenerateService):
         num_fibers_per_each_device: int = total_fibers // num_devices
 
         idx: int = 0
-        assignment_counter: int = 1
+        assignment_counter: int = 0
         for i in range(num_workers):
-            assigned_device = self.sysman.ls.devices[idx]
             worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
             for _ in range(fibers_per_worker):
                 # We keep all the assignment handling in the inner for-loop, to handle cases
@@ -124,6 +123,7 @@ class LlmGenerateService(GenerateService):
                 if assignment_counter == num_fibers_per_each_device:
                     idx += 1
                     assignment_counter = 0
+                assigned_device = self.sysman.ls.devices[idx]
                 fiber = self.sysman.ls.create_fiber(worker, devices=[assigned_device])
                 fibers.append(fiber)
                 assignment_counter += 1
