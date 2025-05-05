@@ -239,12 +239,6 @@ class LlmSingleProcessServiceManager(LlmServiceManager):
             await asyncio.sleep(0.001)
 
         service = self.service_environment.services[instance_num]
-        print(
-            f"Generating in-process with service: {instance_num}"
-            f" current queue size: {service.current_queue_size}"
-            f" max queue size: {service.max_queue_size}"
-        )
-        service = self.service_environment.services[instance_num]
 
         def response_handler_wrapper(response, service=service):
             response_handler(response)
@@ -268,6 +262,7 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
             self.instance_num = instance_num
             self.max_queue_size = max_queue_size
             self.num_outstanding_requests = 0
+            self.is_ready_to_board = True
             self.request_queue = JoinableQueue()
             self.response_queue = JoinableQueue()
             self.executor = ThreadPoolExecutor(max_workers=1)
@@ -301,17 +296,24 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
             self.executor.submit(receive_responses)
 
         def add_to_queue(self) -> bool:
-            if self.num_outstanding_requests >= self.max_queue_size:
-              return False
+            if not self.is_ready_to_board:
+                return False
             self.num_outstanding_requests += 1
+            if self.num_outstanding_requests >= self.max_queue_size:
+              print(f"Instance {self.instance_num}: Flight is full")
+              self.is_ready_to_board = False
             return True
 
         def remove_from_queue(self):
+            print(f"Instance {self.instance_num}: Removing request {self.num_outstanding_requests} of {self.max_queue_size}" )
             self.num_outstanding_requests -= 1
             if (self.num_outstanding_requests < 0):
                 logger.warning(
                     f"Instance {self.instance_num}: Outstanding requests count is negative: {self.num_outstanding_requests}"
                 )
+            if (self.num_outstanding_requests == 0):
+                self.is_ready_to_board = True
+                print(f"Instance {self.instance_num}: Flight is ready to board again")
 
         async def send_request(self, request_counter: int,
                                gen_req: GenerateReqInput,
@@ -319,6 +321,7 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
             # print(f"Generating multi-process with service: {self.instance_num}")
             # print(f"Enqueuing request {request_counter}"
             #       f" to instance {self.instance_num}")
+            print(f"Instance {self.instance_num}: Adding request ID {request_counter}, {self.num_outstanding_requests} of {self.max_queue_size}")
             self.request_queue.put((request_counter, gen_req))
             # put shouldn't block, as the caller checked that the queue wasn't full before calling this method
             self.response_map[request_counter] = response_handler
@@ -361,9 +364,12 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
         # Fill up the queue of the current instance first, so that the batcher
         # can dispatch a batch ASAP
         instance_num = self.cur_instance_num
+        first_tried_instance_num = instance_num
         while not self.instances[instance_num].add_to_queue():
             instance_num = self.get_next_instance_num()
-            await asyncio.sleep(0.001)
+            if instance_num == first_tried_instance_num:
+                await asyncio.sleep(0.001)
+        self.cur_instance_num = instance_num
 
         await self.instances[instance_num].send_request(
             request_counter, gen_req, response_handler
