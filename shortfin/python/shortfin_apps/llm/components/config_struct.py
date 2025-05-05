@@ -103,7 +103,7 @@ class PagedKVCacheParams:
     device_block_count: int
 
     # Element type of the KVCache
-    kv_cache_dtype: sfnp.DType
+    kv_cache_dtype: sfnp.DType | None = None
 
 
 @dataclass_json(undefined=Undefined.RAISE)

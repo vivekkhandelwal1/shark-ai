@@ -142,6 +142,13 @@ def add_service_args(parser: argparse.ArgumentParser):
         default=None,
         help="Workload size to benchmark with",
     )
+    parser.add_argument(
+        "--logical_devices_per_physical_device",
+        "-l",
+        type=int,
+        default=1,
+        help="The number of logical devices (iree_hal_device) to open per physical device.",
+    )
 
 
 def parse_args(argv):

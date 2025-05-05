@@ -25,6 +25,7 @@ from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
 import logging
+import os
 
 
 def get_eos_from_tokenizer_config(json_path):
@@ -48,6 +49,11 @@ class ShortfinLlmLifecycleManager:
     """
 
     def __init__(self, args):
+
+        os.environ["SHORTFIN_AMDGPU_LOGICAL_DEVICES_PER_PHYSICAL_DEVICE"] = str(
+            args.logical_devices_per_physical_device
+        )
+
         # Load server configuration with priority: command line > config file > defaults
         model_params = ModelParams.load_json(args.model_config)
         server_params = ServerParams.load(
@@ -77,6 +83,14 @@ class ShortfinLlmLifecycleManager:
         tokenizer = Tokenizer.from_tokenizer_json_file(
             args.tokenizer_json, eos_token=eos_token
         )
+
+        assert (
+            len(sysman.ls.devices) == args.logical_devices_per_physical_device
+        ), "Failed to open requested number of HAL devices on one physical GPU."
+
+        # Once the sysman is passed to the service, the service should have the requested
+        # number of HAL devices on one physical device visible to it.
+        # It is the responsibility of the service now to decide how it wants to use them.
         service = LlmGenerateService(
             name="default",
             sysman=sysman,

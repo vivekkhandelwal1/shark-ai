@@ -86,11 +86,47 @@ class LlmGenerateService(GenerateService):
             f"Creating {num_workers} workers, with {fibers_per_worker} fibers per worker..."
         )
         fibers = []
+
+        # We emply a very basic divisibility based heuristic to distribute devices amongst the fibers.
+        # Consider we have two workers with two fibers per worker. That makes it 4 fibers total.
+        # If the user wishes to open two HAL devices on one physical device, the heuristic divides the devices
+        # as per the following steps:
+        # 4 fibers, 2 devices -> Create 2 groups containing two fibers each, and assign one device to them.
+        # As we iterate, initialize a device_id to 0, and then at any iteration when the counter becomes an exact
+        # multiple of the number of fibers in one group, increment the device_idx by one to assign the next device
+        # to this group.
+        total_fibers: int = fibers_per_worker * num_workers
+        num_devices: int = len(self.sysman.ls.devices)
+        if total_fibers % num_devices != 0 and total_fibers > num_devices:
+            raise ValueError(
+                f"Failed Precondition: Cannot divide {len(self.sysman.ls.devices)} HAL devices amongst {fibers_per_worker * num_workers} total fibers"
+            )
+
+        if total_fibers < num_devices:
+            # Opening more than one HAL device will fail with a `Duplicate device in Scheduler` error,
+            # and it's just simpler to avoid that by reducing the number of logical devices to one per fiber
+            # in case it ever gets requested.
+            logger.warning(
+                "Request to open more than one device on one fiber. Defaulting to one device per fiber."
+            )
+            num_devices = total_fibers
+
+        num_fibers_per_each_device: int = total_fibers // num_devices
+
+        idx: int = 0
+        assignment_counter: int = 1
         for i in range(num_workers):
+            assigned_device = self.sysman.ls.devices[idx]
             worker = self.sysman.ls.create_worker(f"{self.name}-inference-{i}")
             for _ in range(fibers_per_worker):
-                fiber = self.sysman.ls.create_fiber(worker)
+                # We keep all the assignment handling in the inner for-loop, to handle cases
+                # when fibers_per_worker exceeds the value of devices per fiber group.
+                if assignment_counter == num_fibers_per_each_device:
+                    idx += 1
+                    assignment_counter = 0
+                fiber = self.sysman.ls.create_fiber(worker, devices=[assigned_device])
                 fibers.append(fiber)
+                assignment_counter += 1
 
         self.fiber_pool = FiberPool(
             fibers,
