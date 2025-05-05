@@ -265,9 +265,13 @@ async def run_benchmark(
     num_concurrent_requests: int = 64,
     token_selection_strategy: str = "multi_greedy",
     endpoint: str = "http://localhost:8080",
+    streaming = False,
+    multi_hypothesis = False,
+    best_of_n = 8,
+    top_p = 0.95
 ):
     """Execute the benchmark and return raw data."""
-    client = LLMClient(base_url=endpoint)
+    client = LLMClient(base_url=endpoint, stream=streaming)
 
     prompt = " ".join(["one" for _ in range(input_token_length)])
     config = {
@@ -275,6 +279,16 @@ async def run_benchmark(
         "output_token_length": output_token_length,
         "token_selection_strategy": token_selection_strategy,
     }
+
+    params = {
+            "max_completion_tokens": output_token_length,
+            "token_selection_strategy": token_selection_strategy,
+            "num_beams": 8,
+    }
+
+    if multi_hypothesis:
+        params["b_of_n"] = best_of_n
+        params["top_p"] = top_p
 
     # Create tasks
     tasks = []
@@ -284,11 +298,7 @@ async def run_benchmark(
         tasks.append(
             client.generate(
                 text=prompt,
-                sampling_params={
-                    "max_completion_tokens": output_token_length,
-                    "token_selection_strategy": token_selection_strategy,
-                    "num_beams": 8,
-                },
+                sampling_params=params,
                 save_output=False,
             )
         )
@@ -332,9 +342,13 @@ async def continuous_load_test(
     token_selection_strategy: str,
     endpoint: str,
     duration: int = 60,  # Run for 60 seconds by default
+    streaming = False,
+    multi_hypothesis = False,
+    best_of_n = 8,
+    top_p = 0.95
 ) -> Dict[str, Any]:
     """Run a continuous load test with a single client sending requests continuously."""
-    client = LLMClient(base_url=endpoint)
+    client = LLMClient(base_url=endpoint, stream=streaming)
     prompt = " ".join(["one" for _ in range(input_token_length)])
 
     start_time = time.perf_counter()
@@ -342,16 +356,23 @@ async def continuous_load_test(
     request_times = []
     num_requests = 0
 
+    params = {
+            "max_completion_tokens": output_token_length,
+            "token_selection_strategy": token_selection_strategy,
+            "num_beams": 8,
+    }
+
+    if multi_hypothesis:
+        params["b_of_n"] = best_of_n
+        params["top_p"] = top_p
+
+
     while time.perf_counter() < end_time:
         try:
             request_start = time.perf_counter()
             await client.generate(
                 text=prompt,
-                sampling_params={
-                    "max_completion_tokens": output_token_length,
-                    "token_selection_strategy": token_selection_strategy,
-                    "num_beams": 8,
-                },
+                sampling_params=params,
                 save_output=False,
             )
             request_end = time.perf_counter()
@@ -378,6 +399,10 @@ async def calculate_throughput(
     token_selection_strategy: str,
     endpoint: str,
     duration: int = 60,  # Run for 60 seconds by default
+    streaming = False,
+    multi_hypothesis = False,
+    best_of_n = 8,
+    top_p = 0.95
 ):
     """Calculate throughput by running continuous load tests with multiple concurrent clients."""
     print(
@@ -394,6 +419,10 @@ async def calculate_throughput(
                 token_selection_strategy=token_selection_strategy,
                 endpoint=endpoint,
                 duration=duration,
+                streaming=streaming,
+                multi_hypothesis=multi_hypothesis,
+                best_of_n=best_of_n,
+                top_p=top_p
             )
         )
 
@@ -448,6 +477,10 @@ async def run_all_benchmarks(
     endpoint: str = "http://localhost:8080",
     num_throughput_runs: int = 20,
     results_dir: str = "results",
+    multi_hypothesis = False,
+    streaming = False,
+    best_of_n = 8,
+    top_p = 0.95
 ):
     all_results = []
     throughput_results = []
@@ -462,6 +495,9 @@ async def run_all_benchmarks(
             current_requests = min_concurrent_requests
             optimal_requests = None
 
+            if multi_hypothesis:
+                token_selection_strategy = "multi_greedy"
+
             while current_requests <= max_concurrent_requests:
                 print(f"Testing with {current_requests} concurrent requests")
                 benchmark_data = await run_benchmark(
@@ -470,6 +506,10 @@ async def run_all_benchmarks(
                     num_concurrent_requests=current_requests,
                     token_selection_strategy=token_selection_strategy,
                     endpoint=endpoint,
+                    streaming=streaming,
+                    multi_hypothesis=multi_hypothesis,
+                    best_of_n=best_of_n,
+                    top_p=top_p
                 )
                 result = compute_benchmark_results(benchmark_data)
                 all_results.append(result)
@@ -613,6 +653,28 @@ if __name__ == "__main__":
         default="results",
         help="Directory to save benchmark results",
     )
+    parser.add_argument(
+        "--multi-hypothesis",
+        action='store_true',
+        help="Enable multi hypothesis",
+    )
+    parser.add_argument(
+        "--stream",
+        action='store_true',
+        help="Enable streaming",
+    )
+    parser.add_argument(
+        "--best-of-n",
+        type=int,
+        default=8,
+        help="Best of N (defaults to 8)",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.95,
+        help="Top P value (defaults to 0.95)",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -628,5 +690,10 @@ if __name__ == "__main__":
             target_latency=args.target_latency,
             endpoint=args.endpoint,
             num_throughput_runs=args.num_throughput_runs,
+            results_dir=args.results_dir,
+            streaming=args.stream,
+            multi_hypothesis=args.multi_hypothesis,
+            best_of_n=args.best_of_n,
+            top_p = args.top_p
         )
     )
