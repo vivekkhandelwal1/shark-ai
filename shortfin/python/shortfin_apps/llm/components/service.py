@@ -136,8 +136,15 @@ class LlmGenerateService(GenerateService):
 
     def initialize_page_cache(self):
         """Initialize page pool and attention cache."""
+        # In case the config does not provide a KV-Cache dtype,
+        # simply fallback to the attention dtype.
+        kv_cache_dtype = (
+            self.model_params.attn_dtype
+            if self.model_params.paged_kv_cache.kv_cache_dtype is None
+            else self.model_params.paged_kv_cache.kv_cache_dtype
+        )
         page_pool_config = PagePoolConfig(
-            dtype=self.model_params.paged_kv_cache.kv_cache_dtype,
+            dtype=kv_cache_dtype,
             alloc_page_count=self.model_params.paged_kv_cache.device_block_count,
             paged_kv_block_size_elements=self.model_params.paged_kv_block_size_elements,
         )

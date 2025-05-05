@@ -95,9 +95,7 @@ class PagePool:
             self.config.alloc_page_count,
             self.config.paged_kv_block_size_elements // len(devices),
         ]
-        # TODO(vinayakdsci): The dtype should not be hardcoded here. Instead, default to the attn dtype.
-        if config.dtype is None:
-            config.dtype = sfnp.float16
+
         for device in devices:
             logging.info(
                 "Allocating page table (shape=%r, dtype=%r, size=%s) on %r",
