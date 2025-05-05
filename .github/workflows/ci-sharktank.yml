@@ -85,7 +85,6 @@ jobs:
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
-          sudo su
           pytest -n 4 sharktank/ \
             --durations=10 \
             --log-cli-level=info \
@@ -128,9 +127,6 @@ jobs:
 
       - name: Install pip deps
         run: |
-          sudo add-apt-repository ppa:deadsnakes/ppa -y
-          sudo apt update -y
-          sudo apt install python3.12-dev -y
           python -m pip install --no-compile --upgrade pip
 
           # Note: We install in three steps in order to satisfy requirements
@@ -144,15 +140,9 @@ jobs:
 
           pip freeze
 
-      - name: Check ROCM
-        run: |
-          rocminfo
-          cat /etc/passwd
-
       - name: Run sharktank tests
         if: ${{ !cancelled() }}
         run: |
-          sudo su
           pytest sharktank/ \
             --durations=10 \
             --capture=no \
@@ -211,7 +201,7 @@ jobs:
       # scattered on different CI machines.
         run: |
           source ${VENV_DIR}/bin/activate
-          sudo pytest \
+          pytest \
             -v \
             --log-cli-level=info \
             --with-quark-data \
