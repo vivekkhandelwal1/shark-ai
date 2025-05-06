@@ -84,7 +84,6 @@ class LlamaHParams:
 
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
-        defaut_n_dense_layers = 0
         default_expert_count = 0
         default_expert_used_count = 0
 
@@ -98,6 +97,7 @@ class LlamaHParams:
         if name_prefix == "deepseek2":
             default_n_expert_groups = 8
             default_n_limited_groups = 4
+            defaut_n_dense_layers = 0
             default_qk_rope_head_dim = 64
             default_qk_nope_head_dim = 128
             default_v_head_dim = 128
@@ -121,7 +121,9 @@ class LlamaHParams:
             n_limited_groups = _optional_int_prop(
                 p, f"{name_prefix}.n_limited_groups", default_n_limited_groups
             )
-
+            n_dense_layers = _optional_int_prop(
+                p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
+            )
             rope_scaling_type = _str_prop(p, f"{name_prefix}.rope.scaling.type")
             rope_scaling_factor = _float_prop(p, f"{name_prefix}.rope.scaling.factor")
             rope_scaling_original_context_length = _int_prop(
@@ -138,6 +140,7 @@ class LlamaHParams:
             attention_softcap = None
             n_expert_groups = None
             n_limited_groups = None
+            n_dense_layers = None
             expert_shared_count = None
             q_lora_rank = None
             kv_lora_rank = None
@@ -168,10 +171,6 @@ class LlamaHParams:
             qk_nope_head_dim=qk_nope_head_dim,
             qk_rope_head_dim=qk_rope_head_dim,
             v_head_dim=v_head_dim,
-            route_scale=route_scale,
-            n_dense_layers=_optional_int_prop(
-                p, f"{name_prefix}.leading_dense_block_count", defaut_n_dense_layers
-            ),
             attention_softcap=attention_softcap,
             expert_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_count", default_expert_count
@@ -179,6 +178,8 @@ class LlamaHParams:
             expert_used_count=_optional_int_prop(
                 p, f"{name_prefix}.expert_used_count", default_expert_used_count
             ),
+            route_scale=route_scale,
+            n_dense_layers=n_dense_layers,
             expert_shared_count=expert_shared_count,
             n_expert_groups=n_expert_groups,
             n_limited_groups=n_limited_groups,
