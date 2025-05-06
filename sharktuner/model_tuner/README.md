@@ -1,9 +1,9 @@
-# Simple Example Tuner
+# Getting Started with Model Tuner
 
-Example of tuning a dispatch and a full model.
+Example of tuning a dispatch and a full model using `model_tuner`
 
 ## Environments
-Follow instructions in [`/sharktuner/README.md`](../../README.md)
+Follow instructions in [`/sharktuner/README.md`](../README.md)
 
 ## Running the Tuner
 
@@ -28,7 +28,7 @@ cp tmp/dump/module_main_dispatch_0_rocm_hsaco_fb_benchmark.mlir tmp/mmt_benchmar
 For an initial trial to test the tuning loop, use following command:
 
 ```shell
-cd ../../
+cd ../
 python -m model_tuner model_tuner/double_mmt.mlir \
     model_tuner/tmp/mmt_benchmark.mlir \
     --compile-flags-file=model_tuner/compile_flags.txt \
@@ -59,13 +59,13 @@ python -m model_tuner <model_file_path> <benchmark_file_path> \
 1. Generate Candidate specs
 2. Compile candidate
 3. Benchmark for candidates
-  - Baseline benchmark for candidates (now serially over all the given devices)
-  - Candidate benchmark (parallel over all the given devices)
-  - Second baseline run to check for any regression.
-  - Return top candidates
+    - Baseline benchmark for candidates (now serially over all the given devices)
+    - Candidate benchmark (parallel over all the given devices)
+    - Second baseline run to check for any regression
+    - Return top candidates
 4. Compile models
 5. Benchmark for models
-  - Baseline benchmark for models (now serially over all the given devices)
-  - Model benchmark (parallel over all the given devices)
-  - Second baseline run to check for any regression.
-  - Return top model candidates
+    - Baseline benchmark for models (now serially over all the given devices)
+    - Model benchmark (parallel over all the given devices)
+    - Second baseline run to check for any regression
+    - Return top model candidates

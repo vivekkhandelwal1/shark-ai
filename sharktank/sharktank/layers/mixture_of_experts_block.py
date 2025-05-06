@@ -9,10 +9,9 @@ from typing import Optional
 import torch
 import torch.nn.functional as F
 
-from sharktank.types import Theta, ShardedTensor
 from sharktank.layers import *
-
-from sharktank.ops import softmax, topk, zeros_like, replicate
+from sharktank.ops import softmax, replicate, topk, zeros_like
+from sharktank.types import Theta, ShardedTensor
 
 __all__ = [
     "MoeBlock",
@@ -34,6 +33,7 @@ class MoeBlock(ThetaLayer):
         rms_epsilon: float,
         moe_activation=torch.nn.functional.silu,
         *,
+        experts_ffn_moe_block: PreGatherFFNMOE | DenseFFNMOE | str = "DenseFFNMOE",
         score_experts=softmax,
         normalize_experts=True,
         shard_count: int = 1,
@@ -43,6 +43,10 @@ class MoeBlock(ThetaLayer):
         route_scale: Optional[float] = None,
     ):
         super().__init__(theta)
+        if n_expert_groups is not None and expert_count % n_expert_groups != 0:
+            raise ValueError(
+                f"Number of experts {expert_count} must be divisible by the number of expert groups {n_expert_groups}."
+            )
         self.expert_used_count = expert_used_count
         self.expert_count = expert_count
         self.n_expert_groups = n_expert_groups
@@ -59,6 +63,18 @@ class MoeBlock(ThetaLayer):
         if theta.optional_tensor("ffn_gate_inp") is not None:
             self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
+        if isinstance(experts_ffn_moe_block, str):
+            if experts_ffn_moe_block == "PreGatherFFNMOE":
+                self.routed_experts = PreGatherFFNMOE(theta, activation=moe_activation)
+            elif experts_ffn_moe_block == "DenseFFNMOE":
+                self.routed_experts = DenseFFNMOE(theta, activation_fn=moe_activation)
+            else:
+                raise ValueError(
+                    f'Unknown experts_ffn_moe_block "{experts_ffn_moe_block}"'
+                )
+        else:
+            self.routed_experts = experts_ffn_moe_block
+
         if theta.optional_tensor("ffn_gate_shexp") is not None:
             self.shared_experts = FFN(theta=theta, activation_fn=moe_activation)
 
@@ -67,8 +83,6 @@ class MoeBlock(ThetaLayer):
             self.layer_output_norm = RMSNormLayer(
                 theta("layer_output_norm"), epsilon=rms_epsilon
             )
-
-        self.routed_experts = PreGatherFFNMOE(theta, activation=moe_activation)
 
     def forward(
         self,
@@ -82,24 +96,14 @@ class MoeBlock(ThetaLayer):
         router_logits = self.ffn_gate_inp(ffn_input)
         router_weights = self.score_experts(router_logits.to(torch.float))
 
-        router_weights = replicate(router_weights, count=self.shard_count)
+        if self.shard_count > 1:
+            router_weights = replicate(router_weights, count=self.shard_count)
         # self.n_expert_groups = None
         # self.n_limited_groups = None
         # Select top k experts from router weights
         if self.n_expert_groups is not None and self.n_limited_groups is not None:
-            # print('moe here 1')
-
             scores_for_choice = router_weights.view(-1, self.expert_count)
 
-            print(
-                type(
-                    router_weights.view(
-                        -1,
-                        self.n_expert_groups,
-                        self.expert_count // self.n_expert_groups,
-                    )
-                )
-            )
             group_scores = (
                 router_weights.view(
                     -1, self.n_expert_groups, self.expert_count // self.n_expert_groups
@@ -122,7 +126,6 @@ class MoeBlock(ThetaLayer):
                 scores_for_choice, k=self.expert_used_count, dim=-1
             )
         else:
-            # print('moe here 2')
             expert_gate, top_k_experts = topk(
                 router_weights, self.expert_used_count, dim=-1
             )
