@@ -120,6 +120,18 @@ class AttentionFFNBlockSharding(ThetaLayerSharding):
                 }
             )
             result.update(RoutedExpertsSharding(self.shard_count).theta_sharding())
+        elif self.model_arch == "grok":
+            result = PagedLlamaAttentionBlockSharding(self.shard_count).theta_sharding()
+            result.update(
+                {
+                    # The size of this is the token embedding length, which is not a memory
+                    # space concern if replicated.
+                    "ffn_norm": RmsNormReplicatedSharding(
+                        self.shard_count
+                    ).theta_sharding()
+                }
+            )
+            result.update(RoutedExpertsSharding(self.shard_count).theta_sharding())
         return result
 
 
@@ -374,17 +386,6 @@ class RoutedExpertsSharding(ThetaLayerSharding):
         )
 
 
-def shard_theta(theta: Theta, config: LlamaModelConfig) -> Theta:
-    return ops.reshard(
-        theta,
-        LlamaSharding(
-            shard_count=config.tensor_parallelism_size,
-            attention_block_count=config.hp.block_count,
-            model_arch=config.hp.model_arch,
-        ),
-    )
-
-
 class SharedExpertsSharding(ThetaLayerSharding):
     def __init__(self, shard_count: int):
         super().__init__()
@@ -417,3 +418,14 @@ class TokenEmbeddingLayerReplicatedSharding(ThetaLayerSharding):
                 "weight": Replicated(shard_count=self.shard_count),
             }
         )
+
+
+def shard_theta(theta: Theta, config: LlamaModelConfig) -> Theta:
+    return ops.reshard(
+        theta,
+        LlamaSharding(
+            shard_count=config.tensor_parallelism_size,
+            attention_block_count=config.hp.block_count,
+            model_arch=config.hp.model_arch,
+        ),
+    )
