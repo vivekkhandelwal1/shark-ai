@@ -15,9 +15,9 @@ def lifecycle(app: FastApi):
 """
 
 from .service_manager import (
-  LlmServiceManager,
-  LlmMultiProcessServiceManager,
-  LlmSingleProcessServiceManager
+    LlmServiceManager,
+    LlmMultiProcessServiceManager,
+    LlmSingleProcessServiceManager,
 )
 
 from contextlib import asynccontextmanager
@@ -46,7 +46,8 @@ class ShortfinLlmLifecycleManager:
 
     def __init__(self, args):
         self.service_manager: LlmServiceManager = (
-            LlmSingleProcessServiceManager(args) if args.in_process
+            LlmSingleProcessServiceManager(args)
+            if args.in_process
             else LlmMultiProcessServiceManager(args)
         )
 

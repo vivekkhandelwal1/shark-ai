@@ -147,11 +147,9 @@ class ClientGenerateBatchProcess(sf.Process):
         service: LlmGenerateService,
         gen_req: GenerateReqInput,
         # responder: FastAPIResponder,
-
         response_handler: callable,
         # takes a single arg which is bytes/None, or a list of bytes/None
         # for streaming
-
         fiber: sf.Fiber | None = None,
     ):
         super().__init__(
@@ -174,7 +172,7 @@ class ClientGenerateBatchProcess(sf.Process):
 
     async def run(self):
         logger.debug("Started ClientBatchGenerateProcess: %r", self)
-        
+
         # Try to add request to queue
         if not self.service.add_to_queue():
             error_response = JSONResponse(
@@ -183,8 +181,8 @@ class ClientGenerateBatchProcess(sf.Process):
                     "error": "Server queue is full. Please try again later.",
                     "code": "QUEUE_FULL",
                     "current_size": self.service.current_queue_size,
-                    "max_size": self.service.max_queue_size
-                }
+                    "max_size": self.service.max_queue_size,
+                },
             )
             self.responder.send_response(error_response)
             self.responder.ensure_response()

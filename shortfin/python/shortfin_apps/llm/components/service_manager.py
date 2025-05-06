@@ -49,7 +49,7 @@ class LlmServiceEnvironment:
     def get_model_params(model_config: Path) -> ModelParams:
         model_params = ModelParams.load_json(model_config)
         return model_params
-    
+
     def __init__(self, args, create_multiple_services: bool):
         # Load server configuration with priority:
         # command line > config file > defaults
@@ -138,8 +138,11 @@ class LlmServiceProcess(multiprocessing.Process):
     def run(self):
         print(f"Starting LLM service process {self.name}")
         self.service_environment = LlmServiceEnvironment(
-            self.args, create_multiple_services=False)
-        self.service = self.service_environment.services[0]  # Single instance in this process
+            self.args, create_multiple_services=False
+        )
+        self.service = self.service_environment.services[
+            0
+        ]  # Single instance in this process
         self.service_environment.start()
         print(f"LlmServiceProcess {self.name} ready")
 
@@ -156,7 +159,9 @@ class LlmServiceProcess(multiprocessing.Process):
                 break
 
             if not self.service.add_to_queue():
-                logger.warning(f"Queue full, dropping request {request_counter}: {request}")
+                logger.warning(
+                    f"Queue full, dropping request {request_counter}: {request}"
+                )
                 continue
 
             def response_handler(response, response_counter=request_counter):
@@ -164,8 +169,7 @@ class LlmServiceProcess(multiprocessing.Process):
                 self.response_queue.put((response_counter, response))
                 self.service.remove_from_queue()
 
-            ClientGenerateBatchProcess(
-                self.service, request, response_handler).launch()
+            ClientGenerateBatchProcess(self.service, request, response_handler).launch()
             # Don't wait for it to finish! response_handler should take care of
             # notifying when the response is ready. Waiting here increases
             # latency
@@ -222,7 +226,9 @@ class LlmSingleProcessServiceManager(LlmServiceManager):
 
     def __init__(self, args):
         super().__init__(args)
-        self.service_environment = LlmServiceEnvironment(args, create_multiple_services=True)
+        self.service_environment = LlmServiceEnvironment(
+            args, create_multiple_services=True
+        )
         self.num_instances = self.service_environment.num_instances
 
     def start(self):
@@ -244,8 +250,7 @@ class LlmSingleProcessServiceManager(LlmServiceManager):
             response_handler(response)
             service.remove_from_queue()
 
-        ClientGenerateBatchProcess(
-                service, gen_req, response_handler_wrapper).launch()
+        ClientGenerateBatchProcess(service, gen_req, response_handler_wrapper).launch()
         # Don't wait for it to finish! response_handler should take care of
         # notifying when the response is ready. Waiting here increases latency
 
@@ -257,6 +262,7 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
     """
     Manages each service instance in its own process.
     """
+
     class Instance:
         def __init__(self, instance_num: int, args, max_queue_size: int):
             self.instance_num = instance_num
@@ -300,47 +306,57 @@ class LlmMultiProcessServiceManager(LlmServiceManager):
                 return False
             self.num_outstanding_requests += 1
             if self.num_outstanding_requests >= self.max_queue_size:
-              print(f"Instance {self.instance_num}: Flight is full")
-              self.is_ready_to_board = False
+                print(f"Instance {self.instance_num}: Flight is full")
+                self.is_ready_to_board = False
             return True
 
         def remove_from_queue(self):
-            print(f"Instance {self.instance_num}: Removing request {self.num_outstanding_requests} of {self.max_queue_size}" )
+            print(
+                f"Instance {self.instance_num}: Removing request {self.num_outstanding_requests} of {self.max_queue_size}"
+            )
             self.num_outstanding_requests -= 1
-            if (self.num_outstanding_requests < 0):
+            if self.num_outstanding_requests < 0:
                 logger.warning(
                     f"Instance {self.instance_num}: Outstanding requests count is negative: {self.num_outstanding_requests}"
                 )
-            if (self.num_outstanding_requests == 0):
+            if self.num_outstanding_requests == 0:
                 self.is_ready_to_board = True
                 print(f"Instance {self.instance_num}: Flight is ready to board again")
 
-        async def send_request(self, request_counter: int,
-                               gen_req: GenerateReqInput,
-                               response_handler: callable):
+        async def send_request(
+            self,
+            request_counter: int,
+            gen_req: GenerateReqInput,
+            response_handler: callable,
+        ):
             # print(f"Generating multi-process with service: {self.instance_num}")
             # print(f"Enqueuing request {request_counter}"
             #       f" to instance {self.instance_num}")
-            print(f"Instance {self.instance_num}: Adding request ID {request_counter}, {self.num_outstanding_requests} of {self.max_queue_size}")
+            print(
+                f"Instance {self.instance_num}: Adding request ID {request_counter}, {self.num_outstanding_requests} of {self.max_queue_size}"
+            )
             self.request_queue.put((request_counter, gen_req))
             # put shouldn't block, as the caller checked that the queue wasn't full before calling this method
             self.response_map[request_counter] = response_handler
 
         def shutdown(self):
-            print(f"Shutting down LlmMultiProcessServiceManager instance {self.instance_num}")
+            print(
+                f"Shutting down LlmMultiProcessServiceManager instance {self.instance_num}"
+            )
             # Signal the service process to shut down
             self.request_queue.put((0, None))
             # Wait for the service process to finish
             self.service_process.join()
             self.response_queue.join()
             self.executor.shutdown(wait=True)
-            print(f"LlmMultiProcessServiceManager instance {self.instance_num} shutdown complete")
-    
+            print(
+                f"LlmMultiProcessServiceManager instance {self.instance_num} shutdown complete"
+            )
+
     def __init__(self, args):
         super().__init__(args)
         self.server_params = LlmServiceEnvironment.get_server_params(args)
-        self.model_params = LlmServiceEnvironment.get_model_params(
-            args.model_config)
+        self.model_params = LlmServiceEnvironment.get_model_params(args.model_config)
         self.num_instances = self.server_params.instances
         max_queue_size = max(self.model_params.decode_batch_sizes)
 

@@ -71,7 +71,7 @@ def parse_args(argv):
     parser.add_argument(
         "--in-process",
         action="store_true",
-        help="Run services in a single process instead of using multiple processes."
+        help="Run services in a single process instead of using multiple processes.",
     )
     return parser.parse_args(argv)
 
