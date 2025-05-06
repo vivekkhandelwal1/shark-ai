@@ -81,17 +81,12 @@ class LlamaHParams:
     @staticmethod
     def from_gguf_props(p: dict[str, Any]):
         name_prefix = p.get("general.architecture", "llama")
-        default_expert_count = 0
-        default_expert_used_count = 0
+
         default_rope_freq_base = 500000.0
         default_rope_dimension_count = 128
-        default_n_expert_groups = 8
         defaut_n_dense_layers = 0
-        default_n_limited_groups = 4
-
-        default_qk_rope_head_dim = 64
-        default_qk_nope_head_dim = 128
-        default_v_head_dim = 128
+        default_expert_count = 0
+        default_expert_used_count = 0
 
         attention_head_count = _int_prop(p, f"{name_prefix}.attention.head_count")
         rope_dimension_count = _optional_int_prop(
@@ -101,6 +96,12 @@ class LlamaHParams:
         attention_softcap = 30.0 if name_prefix == "grok" else None
 
         if name_prefix == "deepseek2":
+            default_n_expert_groups = 8
+            default_n_limited_groups = 4
+            default_qk_rope_head_dim = 64
+            default_qk_nope_head_dim = 128
+            default_v_head_dim = 128
+
             qk_rope_head_dim = _optional_int_prop(
                 p, f"{name_prefix}.attention.qk_rope_head_dim", default_qk_rope_head_dim
             )
