@@ -21,11 +21,13 @@ parser.add_argument("-o", "--output", default="/tmp/toy_deepseek.irpa")
 
 def generate(seed):
     torch.manual_seed(seed=12345)
-    dtype = torch.float32
-    block_seq_stride = 32
-    max_blocks = 8
 
-    rope_dimension_count = 16
+    # Constants
+    dtype = torch.float32
+    rope_dimension_count = 64
+    block_seq_stride = 32
+
+    max_blocks = 8
     vocabulary_size = 256
     expert_count = 4
     used_experts = 2
