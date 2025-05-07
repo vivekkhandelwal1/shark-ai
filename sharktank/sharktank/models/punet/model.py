@@ -28,13 +28,13 @@ class Unet2DConditionModel(ThetaLayer):
         ds = Dataset.load(irpa_path, file_type="irpa")
         return cls.from_dataset(ds)
 
-    def __init__(self, hp: PunetModelConfig, theta: Theta):
+    def __init__(self, config: PunetModelConfig, theta: Theta):
         super().__init__(theta)
-        self.hp = hp
+        self.hp = config
         # We don't support the full parameterization of the diffusers model, so guard
         # parameters that we require to be their default. This is a tripwire in case
         # if we see a config that requires more support.
-        hp.assert_default_values(
+        config.assert_default_values(
             [
                 "addition_embed_type",
                 "center_input_sample",
@@ -57,16 +57,16 @@ class Unet2DConditionModel(ThetaLayer):
         self._setup_addition_embedding()
 
         # Input convolution.
-        conv_in_padding = (hp.conv_in_kernel - 1) // 2
+        conv_in_padding = (config.conv_in_kernel - 1) // 2
         self.conv_in = Conv2DLayer(
             theta("conv_in"), padding=(conv_in_padding, conv_in_padding)
         )
 
         # Down blocks.
         self.down_blocks = nn.ModuleList([])
-        for i, down_block_name in enumerate(hp.down_block_types):
+        for i, down_block_name in enumerate(config.down_block_types):
             down_block_theta = theta("down_blocks", i)
-            is_final_block = i == len(hp.block_out_channels) - 1
+            is_final_block = i == len(config.block_out_channels) - 1
             self.down_blocks.append(
                 self._create_down_block(
                     i,
@@ -81,9 +81,9 @@ class Unet2DConditionModel(ThetaLayer):
 
         # Up blocks.
         self.up_blocks = nn.ModuleList([])
-        for i, up_block_name in enumerate(hp.up_block_types):
+        for i, up_block_name in enumerate(config.up_block_types):
             up_block_theta = theta("up_blocks", i)
-            is_final_block = i == len(hp.block_out_channels) - 1
+            is_final_block = i == len(config.block_out_channels) - 1
             self.up_blocks.append(
                 self._create_up_block(
                     i,
@@ -96,12 +96,12 @@ class Unet2DConditionModel(ThetaLayer):
         # Output.
         self.conv_norm_out = None
         self.conv_act = None
-        if hp.norm_num_groups is not None:
+        if config.norm_num_groups is not None:
             self.conv_norm_out = GroupNormLayer(
-                theta("conv_norm_out"), num_groups=hp.norm_num_groups, eps=hp.norm_eps
+                theta("conv_norm_out"), num_groups=config.norm_num_groups, eps=config.norm_eps
             )
-            self.conv_act = ACTIVATION_FUNCTIONS[hp.act_fn]
-        conv_out_padding = (hp.conv_out_kernel - 1) // 2
+            self.conv_act = ACTIVATION_FUNCTIONS[config.act_fn]
+        conv_out_padding = (config.conv_out_kernel - 1) // 2
         self.conv_out = Conv2DLayer(
             theta("conv_out"), padding=(conv_out_padding, conv_out_padding)
         )
@@ -362,7 +362,7 @@ class Unet2DConditionModel(ThetaLayer):
         )
 
 
-class ClassifierFreeGuidanceUnetModel(BaseLayer):
+class ClassifierFreeGuidanceUnetModel(nn.Module):
     def __init__(self, cond_model: Unet2DConditionModel):
         super().__init__()
         self.cond_model = cond_model
@@ -407,7 +407,7 @@ class ClassifierFreeGuidanceUnetModel(BaseLayer):
         )
         return noise_pred
 
-class ClassifierFreeGuidanceScheduledUnetModel(BaseLayer):
+class ClassifierFreeGuidanceScheduledUnetModel(nn.Module):
     def __init__(
         self,
         cond_model: Unet2DConditionModel,

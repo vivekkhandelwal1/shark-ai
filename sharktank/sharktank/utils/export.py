@@ -16,7 +16,7 @@ from iree.turbine.aot import DeviceAffinity, FxProgramsBuilder, externalize_modu
 from torch.utils._pytree import tree_structure, tree_unflatten, tree_flatten
 from torch import nn
 from sharktank.types.tensors import ShardedTensor
-from sharktank.types.theta import mark_export_external_theta
+from sharktank.types.theta import mark_export_external_theta, Theta
 from sharktank.layers import BaseLayer, ThetaLayer, ModelConfig
 
 
@@ -206,6 +206,8 @@ def export_model_mlir(
 
     if isinstance(model, ThetaLayer):
         mark_export_external_theta(model.theta)
+    elif isinstance(model, nn.Module):
+        externalize_module_parameters(model)
 
     if batch_sizes is not None:
         function_batch_sizes_map = {None: batch_sizes}
@@ -248,3 +250,39 @@ def export_model_mlir(
 
         output = aot.export(fxb)
         output.save_mlir(output_path)
+
+def export_model_mlir_from_config(
+    model_config: ModelConfig,
+    function_batch_sizes_map: dict[str, list[int]],
+    wrapper_cls: Optional[BaseLayer | torch.nn.Module] = None,
+    wrapper_kwargs: Optional[dict] = {},
+    theta: Optional[Theta] = None,
+    decomp_attn: Optional[bool] = False,
+):
+    """Export a model with no dynamic dimensions from a config instance.
+
+    Allows provision of a wrapper_cls which accepts a list of one or more 
+    sharktank theta layers (models) and wrapper_kwargs as arguments.
+    The wrapper_cls should accept a list of theta layers as its first init argument,
+    and the rest of the args should be populated via wrapper_kwargs.
+
+    Since the wrapper is likely to change function signatures, we explicitly require that a map
+    be passed in here to determine which function/batch size pairs to construct export sample inputs for, e.g.:
+    {
+        "encode": [1, 2, 4, 8]
+        "decode": [1]
+    }
+
+    """
+    output_path = model_config.mlir_path
+    assert output_path is not None, "A mlir_path was not provided in the model config when exporting to MLIR format."
+
+    sharktank_mod_cls = model_config.model_type
+    sharktank_mod = sharktank_mod_cls(model_config, theta)
+    if wrapper_cls is not None:
+        model = wrapper_cls(model, **wrapper_kwargs)
+    else:
+        model = sharktank_mod
+
+
+    export_model_mlir(model, output_path, function_batch_sizes_map, decomp_attn)

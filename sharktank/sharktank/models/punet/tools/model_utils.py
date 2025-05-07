@@ -9,7 +9,7 @@ import torch
 
 from sharktank.types.theta import load_properties
 from sharktank.utils import tree, parse_version
-from sharktank.models.punet import Unet2DConditionModel, ClassifierFreeGuidanceUnetModel, ClassifierFreeGuidanceScheduledUnetModel
+from sharktank.models.punet.model import Unet2DConditionModel, ClassifierFreeGuidanceUnetModel, ClassifierFreeGuidanceScheduledUnetModel
 
 def get_punet_module_variant(
     repo_id: str, 
@@ -22,7 +22,7 @@ def get_punet_module_variant(
     max_length: int,
     precision: str,
     external_weight_path: str,
-    quant_path: str,
+    quant_path: str = None,
     scheduler_config_path: str = None,
     ):
     hf_model_name = "stabilityai/stable-diffusion-xl-base-1.0"
@@ -40,20 +40,19 @@ def get_punet_module_variant(
         dtype = torch.float16
     punet = get_punet_model(
         hf_model_name,
-        repo_id,
-        subfolder,
-        revision,
         external_weight_path,
         quant_paths,
         precision,
+        repo_id,
+        subfolder,
+        revision,
     )
     if variant == "scheduled":
-        from scheduler import get_scheduler
+        from sharktank.models.punet.scheduler import get_scheduler
         if not scheduler_config_path:
             scheduler_config_path = hf_model_name
         raw_scheduler = get_scheduler(scheduler_config_path, "EulerDiscrete")
         return ClassifierFreeGuidanceScheduledUnetModel(
-            hf_model_name,
             punet,
             raw_scheduler,
             height,

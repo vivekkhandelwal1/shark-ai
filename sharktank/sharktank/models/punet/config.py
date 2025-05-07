@@ -68,7 +68,9 @@ class PunetModelConfig(ModelConfig):
     use_linear_projection: bool = False
 
     def __post_init__(self):
-        super().__post_init__()
+        from sharktank.models.punet.model import Unet2DConditionModel
+
+        self.model_type = Unet2DConditionModel
         # Normalize some.
         if self.upcast_attention is None:
             self.upcast_attention = False
@@ -89,10 +91,10 @@ class PunetModelConfig(ModelConfig):
     def assert_default_values(self, attr_names: Sequence[str]):
         for name in attr_names:
             actual = getattr(self, name)
-            required = getattr(HParams, name)
+            required = getattr(PunetModelConfig, name)
             if actual != required:
                 raise ValueError(
-                    f"NYI: HParams.{name} != {required!r} (got {actual!r})"
+                    f"NYI: PunetModelConfig.{name} != {required!r} (got {actual!r})"
                 )
 
     @classmethod
