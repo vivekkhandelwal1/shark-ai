@@ -106,6 +106,15 @@ class AttentionFFNBlockSharding(ThetaLayerSharding):
         if self.model_arch == "llama":
             result = PagedLlamaAttentionBlockSharding(self.shard_count).theta_sharding()
             result.update(FFNSharding(self.shard_count).theta_sharding())
+            result.update(
+                {
+                    # The size of this is the token embedding length, which is not a memory
+                    # space concern if replicated.
+                    "ffn_norm": RmsNormReplicatedSharding(
+                        self.shard_count
+                    ).theta_sharding()
+                }
+            )
         elif self.model_arch == "deepseek2":
             result = LatentAttentionBlockSharding(self.shard_count).theta_sharding()
             result.update(FFNSharding(self.shard_count).theta_sharding())

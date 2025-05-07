@@ -346,7 +346,7 @@ class AttentionFFNBlock(ThetaLayer):
             "deepseek2": (
                 ops.sigmoid,
                 torch.nn.functional.silu,
-                False,
+                True,
                 True,
             ),
         }
