@@ -150,7 +150,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 q = self.wq(x).unflatten(2, (self.head_count, -1))
             else:
                 q = self.wq_b(self.q_norm(self.wq_a(x)))
-                if not isinstance(q, ReplicatedTensor):
+                if isinstance(q, SplitPrimitiveTensor):
                     q = ops.replicate(q, count=self.shard_count)
                 q = q.unflatten(2, (self.head_count, -1))
 
