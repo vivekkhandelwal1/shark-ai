@@ -203,7 +203,6 @@ def main():
         block_dim_min = 2
         block_dim_max = ceildiv(hp.context_length, llama_config.block_seq_stride) - 1
         block_dim = torch.export.Dim("block", min=block_dim_min, max=block_dim_max)
-        # sl_dim = torch.export.Dim("sl", min=llama_config.block_seq_stride, max=block_dim_max*llama_config.block_seq_stride)
         sl_dim = llama_config.block_seq_stride * block_dim
         seq_block_ids = torch.empty(bs, block_dim_min, dtype=torch.int64)
         tokens = torch.empty(

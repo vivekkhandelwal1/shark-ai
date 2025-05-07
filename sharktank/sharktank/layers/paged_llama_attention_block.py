@@ -221,7 +221,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
                 xq = embedding.apply_batched_mask(xt=xq, mask=embedding_batch_mask)
                 xk = embedding.apply_batched_mask(xt=xk, mask=embedding_batch_mask)
 
-        return xq, xk, xv  # would be replicated deepseek
+        return xq, xk, xv
 
     def forward(
         self,
