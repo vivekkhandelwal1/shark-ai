@@ -68,6 +68,7 @@ def main():
     tensors = []
     logger.info("  Tensors:")
     for tensor in config.root_theta.flatten().values():
+        logger.info(f" Unsaved: {tensor.name}: {tensor.shape}")
         save = False
         # Save tensors of if name in tensor_regex
         if args.tensor_regex is not None and re.search(args.tensor_regex, tensor.name):
