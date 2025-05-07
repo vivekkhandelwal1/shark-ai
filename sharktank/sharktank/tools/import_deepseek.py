@@ -194,7 +194,6 @@ if __name__ == "__main__":
                     experts[id] = {}
                 experts[id][split[3]] = weight
                 continue
-            print(name)
             assert False and "unhandled tensor found"
 
         expert_keys = experts[0].keys() if experts else []
