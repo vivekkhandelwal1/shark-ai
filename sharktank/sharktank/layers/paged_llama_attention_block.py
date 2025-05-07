@@ -179,7 +179,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             ##TODO: Restructure this to apply the wkv_b post attention instead of here
             kv_norm = self.kv_norm(kv_nope)
             wkv_b = self.wkv_b(kv_norm)
-            if not isinstance(wkv_b, ReplicatedTensor):
+            if isinstance(wkv_b, SplitPrimitiveTensor):
                 wkv_b = ops.replicate(wkv_b, count=self.shard_count)
             wkv_b = wkv_b.unflatten(2, (self.head_count, -1))
 
