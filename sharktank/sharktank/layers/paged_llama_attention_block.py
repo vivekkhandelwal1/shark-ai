@@ -255,8 +255,8 @@ class PagedLlamaAttentionBlock(ThetaLayer):
     ):
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
         # print('h', type(h))
-        if not isinstance(h, ReplicatedTensor):
-            h = ops.replicate(h, count=self.shard_count)
+        # if not isinstance(h, ReplicatedTensor):
+        #     h = ops.replicate(h, count=self.shard_count)
         x = self.attn_norm(h)
 
         xq, xk, xv = self.pre_process_attention(
