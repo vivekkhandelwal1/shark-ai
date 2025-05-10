@@ -349,15 +349,6 @@ def make_random_moe_block_theta(
 
         res.update(shared_ffn_theta.tree)
 
-        # res["ffn_gate_shexp.weight"] = DefaultPrimitiveTensor(
-        #     data=make_rand_torch((num_shared_experts * expert_hidden_dim, ffn_dim)),
-        # )
-        # res["ffn_up_shexp.weight"] = DefaultPrimitiveTensor(
-        #     data=make_rand_torch((num_shared_experts * expert_hidden_dim, ffn_dim)),
-        # )
-        # res["ffn_down_shexp.weight"] = DefaultPrimitiveTensor(
-        #     data=make_rand_torch((ffn_dim, num_shared_experts * expert_hidden_dim)),
-        # )
     if with_layer_output_norm:
         res["layer_output_norm.weight"] = DefaultPrimitiveTensor(
             data=make_rand_torch((ffn_dim), dtype=dtype)
