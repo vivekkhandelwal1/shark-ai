@@ -7,7 +7,7 @@
 """Specifications describing how a tensor, ops, layers and blocks are
 sharded."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from abc import ABC, abstractmethod
 from sharktank.utils import tree
@@ -468,12 +468,19 @@ class TokenEmbeddingLayerReplicatedSharding(ThetaLayerSharding):
         )
 
 
-def shard_theta(theta: Theta, config: "LlamaModelConfig") -> Theta:
-    return ops.reshard(
-        theta,
-        LlamaSharding(
+def shard_theta(
+    theta: Theta,
+    config: Optional["LlamaModelConfig"] = None,
+    sharding: ThetaLayerSharding = None,
+) -> Theta:
+    assert config or sharding, "shard_theta requires config or sharding"
+    if sharding is None:
+        sharding = LlamaSharding(
             shard_count=config.tensor_parallelism_size,
             attention_block_count=config.hp.block_count,
             model_arch=config.hp.model_arch,
-        ),
+        )
+    return ops.reshard(
+        theta,
+        spec=sharding,
     )
