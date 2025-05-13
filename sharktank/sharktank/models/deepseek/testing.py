@@ -23,7 +23,6 @@ def make_deepseek_attention_block(
     block_idx: int,
     head_count: int,
     head_count_kv: int,
-    head_dim: int,
     embedding_length: int,
     feed_forward_length: int,
     qk_rope_head_dim: int,
