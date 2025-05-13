@@ -52,7 +52,6 @@ class MoeBlockTest(unittest.TestCase):
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.234,
             ),
             param(
@@ -71,7 +70,6 @@ class MoeBlockTest(unittest.TestCase):
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.234,
             ),
             param(
@@ -90,7 +88,6 @@ class MoeBlockTest(unittest.TestCase):
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.234,
             ),
             param(
@@ -109,7 +106,6 @@ class MoeBlockTest(unittest.TestCase):
                 moe_activation_fn=torch.nn.functional.gelu,
                 score_experts_fn=torch.nn.functional.softmax,
                 normalize_experts=True,
-                add_residual=True,
                 route_scale=3.21,
             ),
             param(
@@ -128,7 +124,6 @@ class MoeBlockTest(unittest.TestCase):
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=False,
-                add_residual=False,
                 route_scale=None,
             ),
         ]
@@ -150,7 +145,6 @@ class MoeBlockTest(unittest.TestCase):
         moe_activation_fn: Callable[[torch.Tensor], torch.Tensor],
         score_experts_fn: Callable[[torch.Tensor], torch.Tensor],
         normalize_experts: bool,
-        add_residual: bool,
         route_scale: float,
     ):
         from sharktank.layers.testing import make_random_moe_block_theta
@@ -178,7 +172,6 @@ class MoeBlockTest(unittest.TestCase):
             experts_ffn_moe_block="PreGatherFFNMOE",
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
         moe_with_dense_ffn = MoeBlock(
@@ -192,7 +185,6 @@ class MoeBlockTest(unittest.TestCase):
             experts_ffn_moe_block="DenseFFNMOE",
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
 
@@ -221,7 +213,6 @@ class MoeBlockTest(unittest.TestCase):
                 moe_activation_fn=torch.nn.functional.silu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=None,
                 tensor_parallelism_size=2,
             ),
@@ -241,7 +232,6 @@ class MoeBlockTest(unittest.TestCase):
                 moe_activation_fn=torch.nn.functional.gelu,
                 score_experts_fn=torch.nn.functional.sigmoid,
                 normalize_experts=True,
-                add_residual=False,
                 route_scale=1.1,
                 tensor_parallelism_size=3,
             ),
@@ -264,7 +254,6 @@ class MoeBlockTest(unittest.TestCase):
         moe_activation_fn: Callable[[torch.Tensor], torch.Tensor],
         score_experts_fn: Callable[[torch.Tensor], torch.Tensor],
         normalize_experts: bool,
-        add_residual: bool,
         route_scale: float,
         tensor_parallelism_size: int,
     ):
@@ -294,7 +283,6 @@ class MoeBlockTest(unittest.TestCase):
             moe_activation=moe_activation_fn,
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
         sharded_block = MoeBlock(
@@ -307,7 +295,6 @@ class MoeBlockTest(unittest.TestCase):
             moe_activation=moe_activation_fn,
             score_experts=score_experts_fn,
             normalize_experts=normalize_experts,
-            add_residual=add_residual,
             route_scale=route_scale,
         )
 
