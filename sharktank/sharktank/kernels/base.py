@@ -75,8 +75,7 @@ def unpack_tensor_type(tensor_type: IrType) -> Tuple[str, str, IrType]:
     """
     rtt = RankedTensorType(tensor_type)
     ident = f"{'x'.join([str(dim) if dim >= 0 else 'D' for dim in rtt.shape])}x{rtt.element_type}"
-    dims = tuple(rtt.shape)
-    return str(rtt), ident, dims, rtt.element_type
+    return str(rtt), ident, rtt.element_type
 
 
 def specialize_all_known_dims(tensor_arg: TensorArg):

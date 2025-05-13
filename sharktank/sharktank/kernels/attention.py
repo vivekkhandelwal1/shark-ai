@@ -333,12 +333,12 @@ class wave_flash_attention(CustomOp):
         options = WaveCompileOptions(
             subs=hyperparams,
             schedule=SchedulingType.NONE,
-            # use_scheduling_barriers=enable_scheduling_barriers,
             dynamic_symbols=dynamic_symbols,
             dynamic_symbols_map=dynamic_symbols_map,
             waves_per_eu=2,
             denorm_fp_math_f32="preserve-sign",
             func_name=target_function_name,
+            compile_to_mlir=True,
         )
         options = set_default_run_config(options)
         base_attention = wave_compile(options, base_attention_func)
