@@ -114,10 +114,10 @@ class LlmBatcherProcess(BatcherProcess):
             return
         target_size = min(self._current_workitems, self.ideal_batch_size)
         if waiting_count < target_size:
-            logger.info("Pending workitems to be enqueued")
+            logger.debug("Pending workitems to be enqueued")
             return
         if waiting_count < self.ideal_batch_size and self.strobes < 2:
-            logger.info("Waiting a bit longer to fill flight")
+            logger.debug("Waiting a bit longer to fill flight")
             return
 
         self.strobes = 0
@@ -302,7 +302,7 @@ class LlmExecutorProcess(sf.Process):
 
             args, req_count = await self.get_args(bs, device0)
 
-            logger.info(
+            logger.debug(
                 "INVOKE %r: %s",
                 fn,
                 "".join(

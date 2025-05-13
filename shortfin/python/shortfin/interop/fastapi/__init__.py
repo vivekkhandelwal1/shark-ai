@@ -53,7 +53,19 @@ class FastAPIResponder(AbstractResponder):
         self.response = asyncio.Future(loop=self._loop)
         self.responded = False
         self._streaming_queue: asyncio.Queue | None = None
-        self.is_disconnected = False
+        self._is_disconnected = False
+
+        self._loop.create_task(self._monitor_disconnection())
+
+    def is_disconnected(self):
+        return self._is_disconnected
+
+    async def _monitor_disconnection(self):
+        while not self._is_disconnected:
+            if await self.request.is_disconnected():
+                self._is_disconnected = True
+                break
+            await asyncio.sleep(1)
 
     def ensure_response(self):
         """Called as part of some finally type block to ensure responses are made."""
@@ -97,7 +109,7 @@ class FastAPIResponder(AbstractResponder):
         async def gen(request, streaming_queue):
             while True:
                 if await request.is_disconnected():
-                    self.is_disconnected = True
+                    self._is_disconnected = True
                 part = await streaming_queue.get()
                 if part is None:
                     break

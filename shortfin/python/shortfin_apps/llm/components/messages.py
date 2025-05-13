@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from enum import Enum
+from typing import Callable
 from uuid import uuid4
 
 import shortfin as sf
@@ -22,7 +23,13 @@ class InferencePhase(Enum):
 class LlmInferenceExecRequest(InferenceExecRequest):
     """Performs a prefill operation."""
 
-    def __init__(self, phase: InferencePhase, input_token_ids: list[int], rid=None):
+    def __init__(
+        self,
+        phase: InferencePhase,
+        input_token_ids: list[int],
+        rid=None,
+        is_disconnected: Callable[[], bool] = lambda: False,
+    ):
         super().__init__()
         self.phase = phase
         self.start_position: int = 0
@@ -50,6 +57,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Cache pages that have been locked for this request.
         self._cache: BasePagedAttentionCache | None = None
         self.allocation: PageAllocation | None = None
+        self.is_disconnected: Callable[[], bool] = is_disconnected
 
     @classmethod
     def copy_exec_request(

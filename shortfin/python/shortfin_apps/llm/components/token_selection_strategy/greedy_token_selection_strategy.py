@@ -104,6 +104,8 @@ class GreedyTokenSelectionStrategy(BaseTokenSelectionStrategy):
         config.decode_begin_callback(1)
         beam = GreedyBeam(exec_req, decode_config=config.decode_config)
         for _ in range(config.decode_config.max_completion_tokens):
+            if exec_req.is_disconnected():
+                break
             exec_req = beam.exec_req
             exec_req.reset(InferencePhase.DECODE)
             config.decode_callback(exec_req)
