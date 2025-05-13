@@ -85,7 +85,6 @@ def make_random_deepseek_theta(
             block_idx=i,
             head_count=config.hp.attention_head_count,
             head_count_kv=config.hp.attention_head_count_kv,
-            head_dim=config.hp.attn_head_dim,
             embedding_length=config.hp.embedding_length,
             feed_forward_length=config.hp.feed_forward_length,
             q_lora_rank=config.hp.q_lora_rank,
