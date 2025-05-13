@@ -35,7 +35,6 @@ class MoeBlock(ThetaLayer):
         experts_ffn_moe_block: PreGatherFFNMOE | DenseFFNMOE | str = "DenseFFNMOE",
         score_experts=softmax,
         normalize_experts=True,
-        add_residual=True,
         expert_count: Optional[int] = None,
         n_expert_groups: Optional[int] = None,
         n_limited_groups: Optional[int] = None,
@@ -64,26 +63,20 @@ class MoeBlock(ThetaLayer):
         self.n_limited_groups = n_limited_groups
         self.score_experts = score_experts
         self.normalize_experts = normalize_experts
-        self.add_residual = add_residual
 
         # Add router gate
         self.add_module("ffn_gate_inp", LinearLayer(theta("ffn_gate_inp")))
 
-        self.ffn_norm = torch.nn.Identity()
         self.layer_output_norm = torch.nn.Identity()
         self.shared_experts = None
         self.route_scale = None
         if route_scale is not None and route_scale != 1:
             self.route_scale = route_scale
 
-        # Add FFN norm
-        if "ffn_norm" in theta:
-            self.ffn_norm = RMSNormLayer(theta("ffn_norm"), epsilon=rms_epsilon)
-
         # Add expert_count x FFN
         if isinstance(experts_ffn_moe_block, str):
             if experts_ffn_moe_block == "PreGatherFFNMOE":
-                self.experts = PreGatherFFNMOE(theta, activation=moe_activation)
+                self.experts = PreGatherFFNMOE(theta, activation_fn=moe_activation)
             elif experts_ffn_moe_block == "DenseFFNMOE":
                 self.experts = DenseFFNMOE(theta, activation_fn=moe_activation)
             else:
@@ -94,7 +87,9 @@ class MoeBlock(ThetaLayer):
             self.experts = experts_ffn_moe_block
 
         if "shared_experts" in theta:
-            self.shared_experts = FFN(theta("shared_experts"))
+            self.shared_experts = FFN(
+                theta("shared_experts"), activation_fn=moe_activation
+            )
 
         # Add optional FFN output norm layer
         if theta.optional_tensor("layer_output_norm") is not None:
@@ -106,9 +101,8 @@ class MoeBlock(ThetaLayer):
         self,
         h: torch.Tensor,
     ):
-        ffn_input = self.ffn_norm(h)
-        batch_size, sequence_length, feature_dim = ffn_input.shape
-        ffn_input = ffn_input.view(-1, feature_dim)
+        batch_size, sequence_length, feature_dim = h.shape
+        ffn_input = h.view(-1, feature_dim)
 
         # For each token, the router calculates the router weights for all experts
         # router_logits: (batch_size * sequence_length, expert_count)
@@ -163,7 +157,5 @@ class MoeBlock(ThetaLayer):
         moe_output = moe_output.reshape(batch_size, sequence_length, feature_dim)
 
         moe_output = self.layer_output_norm(moe_output)
-        if self.add_residual:
-            moe_output = h + moe_output
 
         return moe_output
