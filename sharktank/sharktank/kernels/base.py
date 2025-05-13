@@ -46,8 +46,6 @@ _JINJA2_ENVIRONMENT: Optional[Environment] = None
 __all__ = [
     "call_function",
     "inline_template_function",
-    "inline_wave_function",
-    "load_jinja_asm",
     "load_jinja_template",
     "unpack_tensor_type",
     "specialize_all_known_dims",
@@ -169,53 +167,3 @@ def load_jinja_template(kb: KernelBuilder, template_file: str, **kwargs) -> Oper
             f"\n{lines_numbered}"
         )
     return module_op.operation
-
-
-def load_jinja_asm(kb: KernelBuilder, asm: str, **kwargs) -> Operation:
-    """Loads an MLIR jinja-based ASM by name.
-
-    The ASM is passed in as an argument. It is interpolated
-    with **kwargs and loaded into the KernelBuilder.
-    """
-    asm = asm
-    try:
-        module_op = Operation.parse(asm, context=kb.context)
-    except MLIRError as e:
-        lines = asm.splitlines()
-        lines_numbered = "\n".join(
-            [f"      {str(i+1):>5}: {l}" for i, l in enumerate(lines)]
-        )
-        raise RuntimeError(
-            f"Error parsing generated ASM:"
-            f"\n{textwrap.indent(str(e), '  ')}"
-            f"\n{lines_numbered}"
-        )
-    return module_op.operation
-
-
-def inline_wave_function(
-    kb: KernelBuilder,
-    asm: str,
-    function_name: List[str],
-    # template_type: str = "format",
-    # **kwargs,
-) -> Operation:
-    """Inlines a Wave kernel's ASM using wave_compile.
-
-    Returns the inlined symbol `function_name`, which is expected to have been
-    in the ASM.
-    """
-    try:
-        return kb.symbol_table[function_name]
-    except KeyError:
-        pass
-    source_module_op = load_jinja_asm(kb, asm)
-    if logger.isEnabledFor(logging.DEBUG):
-        logger.debug(
-            "Generated kernel IR %s:\n%s", function_name, str(source_module_op)
-        )
-    merger = Merger(
-        source_module_op, kb.module_body.owner, target_symbol_table=kb.symbol_table
-    )
-    merger.merge()
-    return kb.symbol_table[function_name]

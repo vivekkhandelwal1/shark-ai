@@ -5,6 +5,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from sharktank.kernels.base import *
+from iree.turbine.runtime.op_reg.impl_helper import ASMLoader
 from iree.turbine.kernel.wave.templates.vanilla_attention import (
     get_bhsd_attention_kernel,
 )
@@ -345,10 +346,10 @@ class wave_flash_attention(CustomOp):
 
         asm = base_attention.asm
 
-        target_function = inline_wave_function(
-            kb,
-            asm,
-            target_function_name,
+        _loader = ASMLoader(asm)
+        target_function = _loader.inline_template_function(
+            kb, asm, target_function_name, kwargs=None
         )
+
         kb.yield_results(*call_function(target_function, q, k, v, output))
         pass
