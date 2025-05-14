@@ -33,10 +33,10 @@ class wave_attention(unittest.TestCase):
     def testWaveAttentionCausal(self, atol, rtol):
         dtype = torch.float16
         accum_dtype = torch.float32
-        q = (torch.rand([4, 32, 128, 128]) * 64).to(dtype)
-        k = (torch.rand([4, 32, 128, 128]) * 64).to(dtype)
-        v = (torch.rand([4, 32, 128, 128]) * 64).to(dtype)
-        output = (torch.zeros([4, 32, 128, 128])).to(accum_dtype)
+        q = torch.randn([4, 32, 128, 128], device="cuda", dtype=dtype)
+        k = torch.randn([4, 32, 128, 128], device="cuda", dtype=dtype)
+        v = torch.randn([4, 32, 128, 128], device="cuda", dtype=dtype)
+        output = torch.zeros([4, 32, 128, 128], device="cuda", dtype=accum_dtype)
         result = kernels.wave_flash_attention(q, k, v, output)
         breakpoint()
 
