@@ -121,7 +121,7 @@ class Theta:
         accum = {}
         key_list = list(flat.keys())
         for key in key_list:
-            if key.startswith(name_path):
+            if key.endswith(name_path):
                 accum[key] = flat.pop(key)
         self._tree = flat_to_nested_dict(flat)
         return Theta(flat_to_nested_dict(accum))
@@ -218,6 +218,31 @@ class Theta:
         """
         for path, tensor in self.flatten().items():
             tensor.name = path
+
+    def rename_tensors(self, name_map: dict):
+        theta_dict = {}
+        for k, v in self.flatten().items():
+            layer_parts = k.split(".")
+            new_layer_name = k
+            if "blk" not in k:
+                layer_name = layer_parts[0]
+            else:
+                layer_name = layer_parts[2]
+                if layer_name in (name_map.keys()):
+                    new_layer_name = name_map[layer_name]
+                    new_layer_name = k.replace(layer_name, new_layer_name)
+
+            if isinstance(v, DefaultPrimitiveTensor):
+                v = v.globals[k]
+                theta_dict[new_layer_name] = DefaultPrimitiveTensor(
+                    name=new_layer_name, data=v
+                )
+            else:
+                theta_dict[new_layer_name] = v.clone(
+                    name=list(v.globals.keys())[0].replace(layer_name, new_layer_name)
+                )
+
+        return Theta(flat_to_nested_dict(theta_dict))
 
 
 def torch_module_to_theta(module: torch.nn.Module) -> Theta:
