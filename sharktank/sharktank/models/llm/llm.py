@@ -354,13 +354,14 @@ class AttentionFFNBlock(ThetaLayer):
             ),
         }
 
+        (
+            score_experts,
+            moe_activation,
+            self.add_residual,
+            normalize_experts,
+        ) = moe_func_map[config.hp.model_arch]
+
         if config.hp.expert_count:
-            (
-                score_experts,
-                moe_activation,
-                self.add_residual,
-                normalize_experts,
-            ) = moe_func_map[config.hp.model_arch]
 
             self.add_module(
                 "ffn",
