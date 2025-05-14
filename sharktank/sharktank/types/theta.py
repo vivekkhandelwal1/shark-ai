@@ -114,7 +114,7 @@ class Theta:
     def to(self, *, device: Optional[Union[str, torch.device]] = None) -> "Theta":
         return self.transform(InferenceTensorTransforms.to_device(device))
 
-    def pop(self, *name_path: str | int) -> "Theta":
+    def pop(self, *name_path: str | int, inplace: bool = False) -> "Theta":
         # prune a subtree from the tree and return it as a new Theta object
         name_path = ".".join(_norm_name_path(name_path))
         flat = self.flatten()
@@ -123,7 +123,9 @@ class Theta:
         for key in key_list:
             if key.endswith(name_path) or key.startswith(name_path):
                 accum[key] = flat.pop(key)
-        self._tree = flat_to_nested_dict(flat)
+        if not inplace:
+            # overwrite original theta
+            self._tree = flat_to_nested_dict(flat)
         return Theta(flat_to_nested_dict(accum))
 
     def flatten(self) -> dict[str, InferenceTensor]:
@@ -224,22 +226,26 @@ class Theta:
         for k, v in self.flatten().items():
             layer_parts = k.split(".")
             new_layer_name = k
-            if "blk" not in k:
-                layer_name = layer_parts[0]
-            else:
+            layer_name = layer_parts[0]
+            v_globals = v.globals
+            # v_layer_name can be differant than k in sharded cases
+            v_layer_name = list(v_globals.keys())[0]
+
+            if "blk" in k:
                 layer_name = layer_parts[2]
-                if layer_name in (name_map.keys()):
-                    new_layer_name = name_map[layer_name]
-                    new_layer_name = k.replace(layer_name, new_layer_name)
+
+            if layer_name in (name_map.keys()):
+                new_layer_name = name_map[layer_name]
+                new_layer_name = k.replace(layer_name, new_layer_name)
 
             if isinstance(v, DefaultPrimitiveTensor):
-                v = v.globals[k]
+                v = v_globals[v_layer_name]
                 theta_dict[new_layer_name] = DefaultPrimitiveTensor(
                     name=new_layer_name, data=v
                 )
             else:
                 theta_dict[new_layer_name] = v.clone(
-                    name=list(v.globals.keys())[0].replace(layer_name, new_layer_name)
+                    name=v_layer_name.replace(layer_name, new_layer_name)
                 )
 
         return Theta(flat_to_nested_dict(theta_dict))

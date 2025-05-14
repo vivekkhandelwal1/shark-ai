@@ -71,6 +71,15 @@ class MoeBlock(ThetaLayer):
 
         self.layer_output_norm = torch.nn.Identity()
         self.ffn_gate_inp = torch.nn.Identity()
+        self.name_map = {
+            # Experts name mapping for FFN block
+            "ffn_gate_shexp": "ffn_gate",
+            "ffn_up_shexp": "ffn_up",
+            "ffn_down_shexp": "ffn_down",
+            "ffn_gate_exps": "ffn_gate",
+            "ffn_up_exps": "ffn_up",
+            "ffn_down_exps": "ffn_down",
+        }
 
         # Add router gate
         if theta.optional_tensor("ffn_gate_inp") is not None:
@@ -83,7 +92,11 @@ class MoeBlock(ThetaLayer):
                     theta, activation_fn=moe_activation
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
-                self.routed_experts = DenseFFNMOE(theta, activation_fn=moe_activation)
+                ffn_theta = theta.pop(name_path="exps", inplace=True)
+                ffn_theta = ffn_theta.rename_tensors(self.name_map)
+                self.routed_experts = DenseFFNMOE(
+                    ffn_theta, expert_count=expert_count, activation_fn=moe_activation
+                )
             else:
                 raise ValueError(
                     f'Unknown experts_ffn_moe_block "{experts_ffn_moe_block}"'
@@ -92,6 +105,8 @@ class MoeBlock(ThetaLayer):
             self.routed_experts = experts_ffn_moe_block
 
         if self.expert_shared_count is not None:
+            ffn_theta = theta.pop(name_path="shexp", inplace=True)
+            ffn_theta = ffn_theta.rename_tensors(self.name_map)
             self.shared_experts = FFN(theta=theta, activation_fn=moe_activation)
 
         # Add optional FFN output norm layer

@@ -90,21 +90,15 @@ class DenseFFNMOE(ThetaLayer):
     def __init__(
         self,
         theta: Theta,
+        expert_count: int,
         is_gated: bool = True,
         activation_fn: Callable[[torch.Tensor], torch.Tensor] = F.silu,
         fake_quant: bool = False,
     ):
         super().__init__(theta)
-        self.num_experts = theta("ffn_gate_exps", "weight").shape[0]
-        ffn_theta = Theta(
-            {
-                "ffn_gate": theta("ffn_gate_exps").tree,
-                "ffn_up": theta("ffn_up_exps").tree,
-                "ffn_down": theta("ffn_down_exps").tree,
-            }
-        )
+        self.num_experts = expert_count
         self.ffn = FFN(
-            ffn_theta,
+            theta,
             is_gated=is_gated,
             activation_fn=activation_fn,
             fake_quant=fake_quant,

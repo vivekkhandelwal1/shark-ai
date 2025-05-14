@@ -75,13 +75,6 @@ class PagedLlmModelV1(BaseCausalLMModel):
         self.cache = create_paged_kv_cache(self.config)
         # TODO: Add inference_norm as an optional value from config
         self.inference_norm = self.config.hp.model_arch == "grok"
-        self.name_map = {
-            # Shared experts name mapping for FFN
-            "ffn_gate_shexp": "ffn_gate",
-            "ffn_up_shexp": "ffn_up",
-            "ffn_down_shexp": "ffn_down",
-        }
-        theta = theta.rename_tensors(name_map=self.name_map)
 
         self.add_module(
             "token_embedding",
