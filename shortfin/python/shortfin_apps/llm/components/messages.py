@@ -28,6 +28,7 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         phase: InferencePhase,
         input_token_ids: list[int],
         rid=None,
+        orig_instance_id=None,
         is_disconnected: Callable[[], bool] = lambda: False,
     ):
         super().__init__()
@@ -40,6 +41,11 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         # Unique `instance_id` for token selection strategies that may need
         # to differentiate between an original req and a copy of a req.
         self.instance_id = str(uuid4())
+
+        # Unique ID for an InferenceExecRequest shared between copies and executions.
+        self.orig_instance_id = (
+            self.instance_id if orig_instance_id is None else orig_instance_id
+        )
 
         # Response control.
         # If True, return all sequence position logits. If False, return only
@@ -66,7 +72,8 @@ class LlmInferenceExecRequest(InferenceExecRequest):
         new_exec_req = cls(
             exec_req.phase,
             exec_req.input_token_ids.copy(),
-            exec_req.rid,
+            rid=exec_req.rid,
+            orig_instance_id=exec_req.orig_instance_id,
         )
 
         new_exec_req.start_position = exec_req.start_position
