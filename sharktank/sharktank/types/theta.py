@@ -121,7 +121,7 @@ class Theta:
         accum = {}
         key_list = list(flat.keys())
         for key in key_list:
-            if key.endswith(name_path):
+            if key.endswith(name_path) or key.startswith(name_path):
                 accum[key] = flat.pop(key)
         self._tree = flat_to_nested_dict(flat)
         return Theta(flat_to_nested_dict(accum))
