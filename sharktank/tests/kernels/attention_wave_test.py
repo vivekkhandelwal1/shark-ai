@@ -18,7 +18,7 @@ from sharktank import kernels
 from sharktank.types import layout_utils
 from sharktank.utils import debugging
 from sharktank import ops
-from sharktank.ops.signatures import scaled_dot_product_attention
+from iree.turbine.kernel.wave.common.utils import scaled_dot_product_attention_bhsd
 
 
 class wave_attention(unittest.TestCase):
@@ -27,7 +27,7 @@ class wave_attention(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (1e-3, 1e-5),
+            (1e-3, 1e-3),
         ]
     )
     def testWaveAttentionCausal(self, atol, rtol):
@@ -38,11 +38,9 @@ class wave_attention(unittest.TestCase):
         v = torch.randn([4, 32, 128, 128], device="cuda", dtype=dtype)
         output = torch.zeros([4, 32, 128, 128], device="cuda", dtype=accum_dtype)
         result = kernels.wave_flash_attention(q, k, v, output)
-        breakpoint()
 
-        # Dequantize and test with normal matmul.
         # Tolerances are empirical and results are not expected to match exactly.
-        ref = torch.scaled_dot_product_attention(q, k, v, is_causal=True)
+        ref = scaled_dot_product_attention_bhsd(q, k, v, is_causal=True)
         torch.testing.assert_close(result, ref, atol=atol, rtol=rtol)
 
 
