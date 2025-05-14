@@ -60,7 +60,7 @@ class System:
                     # Stream responses from 0..value
                     responder.stream_start()
                     for i in range(request.request_value + 1):
-                        if responder.is_disconnected:
+                        if responder.is_disconnected():
                             continue
                         responder.stream_part(
                             (json.dumps({"answer": i}) + "\n\0").encode()
