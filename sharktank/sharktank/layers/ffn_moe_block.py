@@ -145,7 +145,7 @@ class DenseFFNMOE(ThetaLayer):
 
         # (self.num_experts, num_tokens)
         router_indices = (
-            ops.reshard_like(torch.arange(num_tokens, device=h.device), router_scores)
+            ops.reshard_like(torch.arange(num_tokens, device=router_scores.device), router_scores)
             .view(1, -1)
             .expand(self.num_experts, -1)
         )
