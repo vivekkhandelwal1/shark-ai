@@ -17,7 +17,7 @@ import shortfin as sf
 import shortfin.array as sfnp
 
 # TODO: Have a generic "Responder" interface vs just the concrete impl.
-from shortfin.interop.fastapi import FastAPIResponder
+from shortfin.interop.fastapi import FastAPIResponder, RequestStatusTracker
 from fastapi.responses import JSONResponse
 from fastapi import status
 
@@ -59,7 +59,7 @@ class GenerateItemProcess(sf.Process):
         input_token_ids: list[int],
         eos_token_id: int,
         decode_config: DecodeConfig,
-        is_disconnected: Callable[[], bool],
+        status_tracker: RequestStatusTracker,
     ):
         super().__init__(fiber=client.fiber)
         self.client = client
@@ -83,14 +83,14 @@ class GenerateItemProcess(sf.Process):
             self.token_selector_config,
         )
         self.streamed_tokens_index = 0
-        self._is_disconnected = is_disconnected
+        self._status_tracker = status_tracker
 
     async def run(self):
         exec_req = LlmInferenceExecRequest(
             phase=InferencePhase.PREFILL,
             input_token_ids=self.input_token_ids,
             rid=self.gen_req.rid,
-            is_disconnected=self._is_disconnected,
+            status_tracker=self._status_tracker,
         )
         exec_req._cache = self.client.prefill_batcher.page_cache
         try:
@@ -207,7 +207,7 @@ class ClientGenerateBatchProcess(sf.Process):
                     input_tokens if is_pretokenized else input_tokens.ids,
                     eos_token_id=self.tokenizer.eos_token_id,
                     decode_config=decode_config,
-                    is_disconnected=self.responder.is_disconnected,
+                    status_tracker=self.responder.get_status_tracker(),
                 )
                 gen_processes.append(gen_process)
                 gen_process.launch()
