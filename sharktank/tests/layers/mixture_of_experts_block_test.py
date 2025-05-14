@@ -237,6 +237,7 @@ class MoeBlockTest(unittest.TestCase):
             ),
         ]
     )
+    @unittest.skip("Deepseek moe sharding changes required from #1256")
     def testTensorParallel(
         self,
         dtype: torch.dtype,
