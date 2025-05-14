@@ -54,7 +54,8 @@ class FastAPIResponder(AbstractResponder):
         self.responded = False
         self._streaming_queue: asyncio.Queue | None = None
         self._is_disconnected = False
-
+        # TODO: Enable the disconnection monitor to interrupt running inferences in SDXL and Flux when the client disconnects.
+        # See: https://github.com/nod-ai/shark-ai/issues/1439
         self._loop.create_task(self._monitor_disconnection())
 
     def is_disconnected(self):
