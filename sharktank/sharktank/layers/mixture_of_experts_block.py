@@ -92,7 +92,7 @@ class MoeBlock(ThetaLayer):
                     theta, activation_fn=moe_activation
                 )
             elif experts_ffn_moe_block == "DenseFFNMOE":
-                ffn_theta = theta.pop(name_path="exps", inplace=True)
+                ffn_theta = theta.pop("exps", inplace=True)
                 ffn_theta = ffn_theta.rename_tensors(self.name_map)
                 self.routed_experts = DenseFFNMOE(
                     ffn_theta, expert_count=expert_count, activation_fn=moe_activation
@@ -105,7 +105,7 @@ class MoeBlock(ThetaLayer):
             self.routed_experts = experts_ffn_moe_block
 
         if self.expert_shared_count is not None:
-            ffn_theta = theta.pop(name_path="shexp", inplace=True)
+            ffn_theta = theta.pop("shexp", inplace=True)
             ffn_theta = ffn_theta.rename_tensors(self.name_map)
             self.shared_experts = FFN(theta=theta, activation_fn=moe_activation)
 
