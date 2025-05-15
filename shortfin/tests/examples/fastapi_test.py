@@ -29,7 +29,7 @@ def server():
     print("Sending kill signal")
     runner.process.terminate()
     print("Waiting for server to exit")
-    runner.process.wait(20)
+    runner.process.wait(30)
 
 
 # Test error first to make sure it doesn't mess up the server.
