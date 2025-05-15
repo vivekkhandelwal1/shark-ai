@@ -360,6 +360,7 @@ class AttentionFFNBlock(ThetaLayer):
                 "ffn",
                 MoeBlock(
                     theta=theta,
+                    expert_count=config.hp.expert_count,
                     expert_used_count=config.hp.expert_used_count,
                     expert_shared_count=config.hp.expert_shared_count,
                     rms_epsilon=config.hp.attention_layer_norm_rms_epsilon,

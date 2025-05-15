@@ -121,7 +121,7 @@ class Theta:
         accum = {}
         key_list = list(flat.keys())
         for key in key_list:
-            if key.endswith(name_path) or key.startswith(name_path):
+            if name_path in key:
                 accum[key] = flat.pop(key)
         if not inplace:
             # overwrite original theta
