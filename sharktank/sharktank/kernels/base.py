@@ -108,6 +108,7 @@ def call_function(target_function: Operation, *operands: Value) -> Sequence[Valu
     op_name = (
         "func.call" if target_function.operation.name == "func.func" else "util.call"
     )
+    target_function.attributes["sym_visibility"] = StringAttr.get("private")
 
     return Operation.create(
         op_name,
