@@ -81,7 +81,6 @@ class System:
             except:
                 traceback.print_exc()
             finally:
-                print("ensuring response")
                 responder.ensure_response()
 
 
