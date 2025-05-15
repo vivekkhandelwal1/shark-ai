@@ -126,6 +126,9 @@ class FluxParams(ModelConfig):
     def from_hugging_face_properties(
         cls: type["FluxParams"], properties: dict[str, Any]
     ) -> "FluxParams":
+        for k, v in properties.items():
+            print("k: ", k)
+            print("v: ", v)
         return FluxParams(
             **cls.translate_hugging_face_config_dict_into_init_kwargs(properties)
         )

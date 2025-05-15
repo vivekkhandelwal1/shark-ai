@@ -11,3 +11,4 @@ from . import punet
 from . import t5
 from . import vae
 from . import llm
+from . import wani2v
