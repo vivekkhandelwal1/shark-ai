@@ -56,6 +56,17 @@ class System:
                     responder.send_response(
                         JSONResponse({"answer": request.request_value})
                     )
+                elif request.request_value == 2:
+                    count = 0
+                    while not responder.is_disconnected() and count < 5:
+                        count += 1
+                        await asyncio.sleep(1)
+                    if count >= 5:
+                        # Simulating a long response that takes 5 seconds to complete.
+                        # If not enough time has passed, the response will not be generated.
+                        responder.send_response(
+                            JSONResponse({"answer": request.request_value})
+                        )
                 else:
                     # Stream responses from 0..value
                     responder.stream_start()
@@ -70,6 +81,7 @@ class System:
             except:
                 traceback.print_exc()
             finally:
+                print("ensuring response")
                 responder.ensure_response()
 
 

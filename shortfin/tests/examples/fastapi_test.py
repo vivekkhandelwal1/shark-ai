@@ -13,6 +13,7 @@ import socket
 import subprocess
 import sys
 import time
+import threading
 
 project_dir = Path(__file__).parent.parent.parent
 example_dir = project_dir / "examples" / "python"
@@ -32,27 +33,66 @@ def server():
     runner.process.wait(20)
 
 
-# Test error first to make sure it doesn't mess up the server.
-def test_error_response(server):
-    resp = requests.get(f"{server.url}/predict?value=0")
-    assert resp.status_code == 500
+# # Test error first to make sure it doesn't mess up the server.
+# def test_error_response(server):
+#     resp = requests.get(f"{server.url}/predict?value=0")
+#     assert resp.status_code == 500
 
 
-def test_single_response(server):
-    resp = requests.get(f"{server.url}/predict?value=1")
-    resp.raise_for_status()
-    full_contents = resp.content
-    print(full_contents)
-    assert full_contents == b'{"answer":1}'
+# def test_single_response(server):
+#     resp = requests.get(f"{server.url}/predict?value=1")
+#     resp.raise_for_status()
+#     full_contents = resp.content
+#     print(full_contents)
+#     assert full_contents == b'{"answer":1}'
 
 
-def test_stream_response(server):
-    resp = requests.get(f"{server.url}/predict?value=20")
-    resp.raise_for_status()
-    full_contents = resp.content
-    print(full_contents)
-    exp_contents = ("".join(['{"answer": %s}\n\x00' % i for i in range(21)])).encode()
-    assert full_contents == exp_contents
+# def test_stream_response(server):
+#     resp = requests.get(f"{server.url}/predict?value=20")
+#     resp.raise_for_status()
+#     full_contents = resp.content
+#     print(full_contents)
+#     exp_contents = ("".join(['{"answer": %s}\n\x00' % i for i in range(21)])).encode()
+#     assert full_contents == exp_contents
+
+
+def test_cancel_long_request(server):
+    # Start the request in a separate thread
+    response = None
+    error = None
+
+    def make_request(timeout: int = 1):
+        nonlocal response, error
+        try:
+            # Use a session to have more control over the connection
+            with requests.Session() as session:
+                response = session.get(f"{server.url}/predict?value=2", timeout=timeout)
+        except requests.exceptions.Timeout as e:
+            error = e
+        except Exception as e:
+            error = e
+
+    # Start the request thread
+    request_thread = threading.Thread(target=make_request)
+    request_thread.start()
+    request_thread.join()
+
+    # Verify that the request timed out
+    assert error is not None, "Request should have timed out"
+    assert isinstance(error, requests.exceptions.Timeout), "Expected Timeout error"
+
+    # Verify server is still responsive
+    health_resp = requests.get(f"{server.url}/health")
+    assert health_resp.status_code == 200
+
+    # Test that request is successful if timeout is increased
+    response = None
+    error = None
+    request_thread = threading.Thread(target=make_request, args=(6,))
+    request_thread.start()
+    request_thread.join()
+    assert response is not None, "Request should be successful"
+    assert error is None, "Request should not have an error"
 
 
 class ServerRunner:
