@@ -34,7 +34,6 @@ class MoeBlock(ThetaLayer):
         experts_ffn_moe_block: PreGatherFFNMOE | DenseFFNMOE | str = "DenseFFNMOE",
         score_experts=softmax,
         normalize_experts=True,
-        shard_count: int = 1,
         expert_count: Optional[int] = None,
         expert_used_count: int,
         expert_shared_count: Optional[int] = None,
@@ -67,7 +66,6 @@ class MoeBlock(ThetaLayer):
         self.score_experts = score_experts
         self.normalize_experts = normalize_experts
         self.route_scale = route_scale
-        self.shard_count = shard_count
 
         self.layer_output_norm = torch.nn.Identity()
         self.ffn_gate_inp = torch.nn.Identity()

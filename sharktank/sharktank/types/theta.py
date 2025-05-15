@@ -221,7 +221,7 @@ class Theta:
         for path, tensor in self.flatten().items():
             tensor.name = path
 
-    def rename_tensors(self, name_map: dict):
+    def rename_tensors(self, name_map: dict) -> "Theta":
         theta_dict = {}
         for k, v in self.flatten().items():
             layer_parts = k.split(".")
