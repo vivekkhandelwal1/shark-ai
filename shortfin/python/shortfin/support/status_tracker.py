@@ -13,8 +13,10 @@ class AbstractStatusTracker:
     """
 
     def __init__(self):
-        self._loop = asyncio.get_running_loop()
-        pass
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            print("Warning: No running loop found")
 
     def is_disconnected(self) -> bool:
         """Returns True if the connection/request is considered disconnected."""
