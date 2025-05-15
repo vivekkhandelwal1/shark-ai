@@ -13,7 +13,6 @@ import socket
 import subprocess
 import sys
 import time
-import threading
 
 project_dir = Path(__file__).parent.parent.parent
 example_dir = project_dir / "examples" / "python"
