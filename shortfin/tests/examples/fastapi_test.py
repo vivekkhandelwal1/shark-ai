@@ -81,6 +81,7 @@ def test_cancel_long_request(server):
     # Test that request is successful if timeout is increased
     response, error = make_request(20)
     assert response is not None, "Request should be successful"
+    assert response.content == b'{"answer":2}'
     assert error is None, "Request should not have an error"
 
 
