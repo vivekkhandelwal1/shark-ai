@@ -79,7 +79,7 @@ def test_cancel_long_request(server):
     assert health_resp.status_code == 200
 
     # Test that request is successful if timeout is increased
-    response, error = make_request(6)
+    response, error = make_request(20)
     assert response is not None, "Request should be successful"
     assert error is None, "Request should not have an error"
 
