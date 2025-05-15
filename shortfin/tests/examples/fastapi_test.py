@@ -60,11 +60,12 @@ def test_cancel_long_request(server):
         response = None
         error = None
         try:
-            with requests.Session() as session:
-                response = session.get(f"{server.url}/predict?value=2", timeout=timeout)
+            response = requests.get(f"{server.url}/predict?value=2", timeout=timeout)
         except requests.exceptions.Timeout as e:
+            print(f"Timeout error: {e}")
             error = e
         except Exception as e:
+            print(f"Other error: {e}")
             error = e
         return response, error
 
