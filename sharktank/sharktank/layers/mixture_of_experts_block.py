@@ -107,6 +107,7 @@ class MoeBlock(ThetaLayer):
             ffn_theta = ffn_theta.rename_tensors(self.name_map)
             self.shared_experts = FFN(theta=theta, activation_fn=moe_activation)
 
+
         # Add optional FFN output norm layer
         if theta.optional_tensor("layer_output_norm") is not None:
             self.layer_output_norm = RMSNormLayer(
