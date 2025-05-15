@@ -33,27 +33,27 @@ def server():
     runner.process.wait(20)
 
 
-# # Test error first to make sure it doesn't mess up the server.
-# def test_error_response(server):
-#     resp = requests.get(f"{server.url}/predict?value=0")
-#     assert resp.status_code == 500
+# Test error first to make sure it doesn't mess up the server.
+def test_error_response(server):
+    resp = requests.get(f"{server.url}/predict?value=0")
+    assert resp.status_code == 500
 
 
-# def test_single_response(server):
-#     resp = requests.get(f"{server.url}/predict?value=1")
-#     resp.raise_for_status()
-#     full_contents = resp.content
-#     print(full_contents)
-#     assert full_contents == b'{"answer":1}'
+def test_single_response(server):
+    resp = requests.get(f"{server.url}/predict?value=1")
+    resp.raise_for_status()
+    full_contents = resp.content
+    print(full_contents)
+    assert full_contents == b'{"answer":1}'
 
 
-# def test_stream_response(server):
-#     resp = requests.get(f"{server.url}/predict?value=20")
-#     resp.raise_for_status()
-#     full_contents = resp.content
-#     print(full_contents)
-#     exp_contents = ("".join(['{"answer": %s}\n\x00' % i for i in range(21)])).encode()
-#     assert full_contents == exp_contents
+def test_stream_response(server):
+    resp = requests.get(f"{server.url}/predict?value=20")
+    resp.raise_for_status()
+    full_contents = resp.content
+    print(full_contents)
+    exp_contents = ("".join(['{"answer": %s}\n\x00' % i for i in range(21)])).encode()
+    assert full_contents == exp_contents
 
 
 def test_cancel_long_request(server):

@@ -5,7 +5,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from enum import Enum
-from typing import Callable
 from uuid import uuid4
 
 import shortfin as sf

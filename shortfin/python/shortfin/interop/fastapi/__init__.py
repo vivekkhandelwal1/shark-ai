@@ -121,8 +121,8 @@ class FastAPIResponder(AbstractResponder):
 
         async def gen(request, streaming_queue):
             while True:
-                # if await request.is_disconnected():
-                #     self._is_disconnected = True
+                if await request.is_disconnected():
+                    self._is_disconnected = True
                 part = await streaming_queue.get()
                 if part is None:
                     break

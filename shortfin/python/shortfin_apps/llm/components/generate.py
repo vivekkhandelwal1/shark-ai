@@ -11,7 +11,7 @@ import json
 import logging
 
 from copy import copy
-from typing import Callable, List
+from typing import List
 
 import shortfin as sf
 import shortfin.array as sfnp
