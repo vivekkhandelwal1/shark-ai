@@ -57,26 +57,19 @@ def test_stream_response(server):
 
 
 def test_cancel_long_request(server):
-    # Start the request in a separate thread
-    response = None
-    error = None
-
-    def make_request(timeout: int = 1):
-        nonlocal response, error
+    def make_request(timeout: float = 1):
+        response = None
+        error = None
         try:
-            # Use a session to have more control over the connection
             with requests.Session() as session:
                 response = session.get(f"{server.url}/predict?value=2", timeout=timeout)
         except requests.exceptions.Timeout as e:
             error = e
         except Exception as e:
             error = e
+        return response, error
 
-    # Start the request thread
-    request_thread = threading.Thread(target=make_request)
-    request_thread.start()
-    request_thread.join()
-
+    response, error = make_request(1)
     # Verify that the request timed out
     assert error is not None, "Request should have timed out"
     assert isinstance(error, requests.exceptions.Timeout), "Expected Timeout error"
@@ -86,11 +79,7 @@ def test_cancel_long_request(server):
     assert health_resp.status_code == 200
 
     # Test that request is successful if timeout is increased
-    response = None
-    error = None
-    request_thread = threading.Thread(target=make_request, args=(6,))
-    request_thread.start()
-    request_thread.join()
+    response, error = make_request(6)
     assert response is not None, "Request should be successful"
     assert error is None, "Request should not have an error"
 

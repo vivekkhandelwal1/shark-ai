@@ -61,7 +61,7 @@ class System:
                     while not responder.is_disconnected() and count < 5:
                         count += 1
                         await asyncio.sleep(1)
-                    if count >= 5:
+                    if count >= 2:
                         # Simulating a long response that takes 5 seconds to complete.
                         # If not enough time has passed, the response will not be generated.
                         responder.send_response(
