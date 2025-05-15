@@ -114,7 +114,7 @@ class Theta:
     def to(self, *, device: Optional[Union[str, torch.device]] = None) -> "Theta":
         return self.transform(InferenceTensorTransforms.to_device(device))
 
-    def pop(self, *name_path: str | int, inplace: bool = False) -> "Theta":
+    def pop(self, *name_path: str | int, inplace: bool = True) -> "Theta":
         # prune a subtree from the tree and return it as a new Theta object
         name_path = ".".join(_norm_name_path(name_path))
         flat = self.flatten()
@@ -123,7 +123,7 @@ class Theta:
         for key in key_list:
             if name_path in key:
                 accum[key] = flat.pop(key)
-        if not inplace:
+        if inplace:
             # overwrite original theta
             self._tree = flat_to_nested_dict(flat)
         return Theta(flat_to_nested_dict(accum))
