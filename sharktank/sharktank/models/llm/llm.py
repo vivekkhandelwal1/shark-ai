@@ -337,6 +337,7 @@ class AttentionFFNBlock(ThetaLayer):
         config: LlamaModelConfig,
         fake_quant: bool = True,
     ):
+        activation_fn = ACT2FN[config.activation_fn]
         super().__init__(theta)
 
         attention_kernel = (
@@ -390,14 +391,23 @@ class AttentionFFNBlock(ThetaLayer):
                 False,
                 True,
             ),
+            "llama4": (
+                torch.nn.functional.sigmoid,
+                activation_fn,
+                True,
+                False,
+            ),
         }
 
-        (
-            score_experts,
-            moe_activation,
-            self.add_residual,
-            normalize_experts,
-        ) = moe_func_map[config.hp.model_arch]
+        # TODO: make all models respect config.moe_layers
+        is_moe_block = block_index in config.moe_layers
+        if is_moe_block:
+            (
+                score_experts,
+                moe_activation,
+                self.add_residual,
+                normalize_experts,
+            ) = moe_func_map[config.hp.model_arch]
 
         if config.hp.expert_count:
 
@@ -420,6 +430,8 @@ class AttentionFFNBlock(ThetaLayer):
                 FFN(
                     theta=theta,
                     fake_quant=fake_quant,
+                    activation_fn=activation_fn,
+                    add_residual=config.ffn_add_residual,
                 ),
             )
 
