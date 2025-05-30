@@ -155,5 +155,4 @@ def make_toy_model_config(dtype: torch.dtype) -> LlamaModelConfig:
         attn_temperature_tuning=True,
         floor_scale=31,
         attn_scale=0.2,
-        ffn_add_residual=True,
     )

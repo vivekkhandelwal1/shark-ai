@@ -363,8 +363,12 @@ class AttentionFFNBlock(ThetaLayer):
                 model_arch=config.hp.model_arch,
                 block_to_pipeline_map=config.block_to_pipeline_map,
                 pipeline_to_device_map=config.pipeline_to_device_map,
-                use_rope=block_index in config.rope_layers,
-                use_qk_norm=block_index in config.rope_layers and config.use_qk_norm,
+                use_rope=block_index in config.rope_layers
+                if config.rope_layers
+                else False,
+                use_qk_norm=block_index in config.rope_layers and config.use_qk_norm
+                if config.rope_layers
+                else False,
                 attn_temperature_tuning=config.attn_temperature_tuning,
                 floor_scale=config.floor_scale,
                 attn_scale=config.attn_scale,

@@ -120,24 +120,27 @@ class Llama4Test(TempDirTestBase):
         sequence_length = 19
 
         theta = make_random_moe_block_theta(
+            block_idx=0,
             in_dim=feature_dim,
             expert_hidden_dim=expert_hidden_dim,
             num_experts=num_experts,
             with_ffn_norm=True,
             num_shared_experts=num_shared_experts,
-            shared_expert_hidden_dim=shared_expert_hidden_dim,
             with_layer_output_norm=True,
             dtype=dtype,
         )
 
         moe_block = MoeBlock(
             theta=theta,
+            expert_count=num_experts,
             expert_used_count=expert_used_count,
             rms_epsilon=0.01,
             moe_activation=torch.nn.functional.silu,
+            experts_ffn_moe_block="PreGatherFFNMOE",
             score_experts=torch.nn.functional.sigmoid,
             normalize_experts=False,
-            add_residual=False,
+            expert_shared_count=num_shared_experts,
+            model_arch="llama4",
         )
 
         input = (
