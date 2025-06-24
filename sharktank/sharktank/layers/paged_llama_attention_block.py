@@ -242,7 +242,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
             if start_positions is None:
                 cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
             else:
-                assert False, "TODO: decode step"
+                cache_position = torch.tensor([2], dtype=torch.long)
             attn_scales = (
                 torch.log(
                     torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0
