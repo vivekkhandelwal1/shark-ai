@@ -1,0 +1,95 @@
+# Mapping for toy llama4 decode step
+"model.embed_tokens": "token_embedding" # shape=(41, 1, 160), dtype=torch.float32
+"model.embed_tokens.arg%0": "token_embedding.arg%0" # shape=(41, 1), dtype=torch.int64
+# TODO: Add rotary embeddings if they are used
+"model.layers.0.input_layernorm": "attn_blocks.0.attn.attn_norm" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.input_layernorm.arg%0": "attn_blocks.0.attn.attn_norm.arg%0" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.self_attn.q_proj": "attn_blocks.0.attn.attn_q" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.self_attn.q_proj.arg%0": "attn_blocks.0.attn.attn_q.arg%0" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.self_attn.k_proj": "attn_blocks.0.attn.attn_k" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.self_attn.k_proj.arg%0": "attn_blocks.0.attn.attn_k.arg%0" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.self_attn.v_proj": "attn_blocks.0.attn.attn_v" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.self_attn.v_proj.arg%0": "attn_blocks.0.attn.attn_v.arg%0" #shape=(41, 1, 160), dtype=torch.float32
+# Starts to deviate from the original model here
+# Shape and dtype of the qk_norm tensors are same, but the values are different
+"model.layers.0.self_attn.qk_norm#0": "attn_blocks.0.attn.qk_norm#0" #shape=(41, 1, 20, 8), dtype=torch.float32
+"model.layers.0.self_attn.qk_norm#1": "attn_blocks.0.attn.qk_norm#1" #shape=(41, 1, 4, 8), dtype=torch.float32
+"model.layers.0.self_attn.qk_norm.arg%0#0": "attn_blocks.0.attn.qk_norm.arg%0#0" #shape=(41, 1, 20, 8), dtype=torch.float32
+"model.layers.0.self_attn.qk_norm.arg%0#1": "attn_blocks.0.attn.qk_norm.arg%0#1" #shape=(41, 1, 4, 8), dtype=torch.float32
+"model.layers.0.self_attn.o_proj": "attn_blocks.0.attn.attn_output" #shape=(41, 1, 160), dtype=torch.float32
+"model.layers.0.self_attn.o_proj.arg%0": "attn_blocks.0.attn.attn_output.arg%0" #shape=(41, 1, 160), dtype=torch.float32
+
+
+# "model.layers.0%0": "attn_blocks.0"                   # (41, 1, 160) float32
+# "model.layers.0.arg%0": "attn_blocks.0.arg%0"         # (41, 1, 160) float32
+# "model.layers.0.arg%attention_mask": "attn_blocks.0.arg%attention_mask"
+# "model.layers.0.feed_forward": "attn_blocks.0.ffn"
+# "model.layers.0.feed_forward.arg%0": "attn_blocks.0.ffn.arg%0"
+# "model.layers.0.feed_forward.down_proj": "attn_blocks.0.ffn.ffn_down"
+# "model.layers.0.feed_forward.down_proj.arg%0": "attn_blocks.0.ffn.ffn_down.arg%0"
+# "model.layers.0.feed_forward.gate_proj": "attn_blocks.0.ffn.ffn_gate"
+# "model.layers.0.feed_forward.gate_proj.arg%0": "attn_blocks.0.ffn.ffn_gate.arg%0"
+# "model.layers.0.feed_forward.up_proj": "attn_blocks.0.ffn.ffn_up"
+# "model.layers.0.feed_forward.up_proj.arg%0": "attn_blocks.0.ffn.ffn_up.arg%0"
+# "model.layers.0.input_layernorm": "attn_blocks.0.ffn_norm"
+# "model.layers.0.input_layernorm.arg%0": "attn_blocks.0.ffn_norm.arg%0"
+# "model.layers.0.self_attn%0": "attn_blocks.0.attn"
+# "model.layers.0.self_attn.arg%attention_mask": "attn_blocks.0.attn.arg%attention_mask"
+# "model.layers.0.self_attn.k_proj": "attn_blocks.0.attn.attn_k"
+# "model.layers.0.self_attn.k_proj.arg%0": "attn_blocks.0.attn.attn_k.arg%0"
+# "model.layers.0.self_attn.o_proj": "attn_blocks.0.attn.attn_output"
+# "model.layers.0.self_attn.o_proj.arg%0": "attn_blocks.0.attn.attn_output.arg%0"
+# "model.layers.0.self_attn.q_proj": "attn_blocks.0.attn.attn_q"
+# "model.layers.0.self_attn.q_proj.arg%0": "attn_blocks.0.attn.attn_q.arg%0"
+# "model.layers.0.self_attn.v_proj": "attn_blocks.0.attn.attn_v"
+# "model.layers.0.self_attn.v_proj.arg%0": "attn_blocks.0.attn.attn_v.arg%0"
+# "model.layers.0.self_attn.qk_norm#0": "attn_blocks.0.attn.qk_norm#0"
+# "model.layers.0.self_attn.qk_norm#1": "attn_blocks.0.attn.qk_norm#1"
+# "model.layers.0.self_attn.qk_norm.arg%0#0": "attn_blocks.0.attn.qk_norm.arg%0#0"
+# "model.layers.0.self_attn.qk_norm.arg%0#1": "attn_blocks.0.attn.qk_norm.arg%0#1"
+# "model.layers.0.post_attention_layernorm": "attn_blocks.0.attn.attn_output_norm"
+# "model.layers.0.post_attention_layernorm.arg%0": "attn_blocks.0.attn.attn_output_norm.arg%0"
+
+
+# "model.layers.0.input_layernorm": "attn_blocks.0.attn.attn_norm"
+# "model.layers.0.self_attn.q_proj": "attn_blocks.0.attn.attn_q"
+# "model.layers.0.self_attn.k_proj": "attn_blocks.0.attn.attn_k"
+# "model.layers.0.self_attn.v_proj": "attn_blocks.0.attn.attn_v"
+# "model.layers.0.self_attn.qk_norm.arg%0#0": "attn_blocks.0.attn.qk_norm.arg%0#0"
+# "model.layers.0.self_attn.qk_norm.arg%0#1": "attn_blocks.0.attn.qk_norm.arg%0#1"
+# "model.layers.0.self_attn.qk_norm#0": "attn_blocks.0.attn.qk_norm#0"
+# "model.layers.0.self_attn.qk_norm#1": "attn_blocks.0.attn.qk_norm#1"
+# "model.layers.0.self_attn.o_proj": "attn_blocks.0.attn.attn_output"
+# "model.layers.0.post_attention_layernorm.arg%0": "attn_blocks.0.ffn.ffn_norm.arg%0"
+# "model.layers.0.post_attention_layernorm": "attn_blocks.0.ffn.ffn_norm"
+# "model.layers.0.feed_forward.down_proj": "attn_blocks.0.ffn.ffn_down"
+
+# "model.layers.0%0": "attn_blocks.0"
+# # "model.layers.1.post_attention_layernorm":   "attn_blocks.1.ffn.ffn_norm"
+# # "model.layers.1.feed_forward.router":        "attn_blocks.1.ffn.ffn_gate_inp"
+# # "model.layers.1.feed_forward.shared_expert": "attn_blocks.1.ffn.shared_experts"
+# # "model.layers.1%0":                          "attn_blocks.1"
+
+# # "model.layers.2.input_layernorm":                "attn_blocks.2.attn.attn_norm"
+# # "model.layers.2.self_attn.q_proj":               "attn_blocks.2.attn.attn_q"
+# # "model.layers.2.self_attn.k_proj":               "attn_blocks.2.attn.attn_k"
+# # "model.layers.2.self_attn.v_proj":               "attn_blocks.2.attn.attn_v"
+# # "model.layers.2.self_attn.qk_norm.arg%0#0":      "attn_blocks.2.attn.qk_norm.arg%0#0"
+# # "model.layers.2.self_attn.qk_norm.arg%0#1":      "attn_blocks.2.attn.qk_norm.arg%0#1"
+# # "model.layers.2.self_attn.qk_norm#0":            "attn_blocks.2.attn.qk_norm#0"
+# # "model.layers.2.self_attn.qk_norm#1":            "attn_blocks.2.attn.qk_norm#1"
+# # "model.layers.2.self_attn.o_proj":               "attn_blocks.2.attn.attn_output"
+# # "model.layers.2.post_attention_layernorm.arg%0": "attn_blocks.2.ffn.ffn_norm.arg%0"
+# # "model.layers.2.post_attention_layernorm":       "attn_blocks.2.ffn.ffn_norm"
+# # "model.layers.2.feed_forward.down_proj":         "attn_blocks.2.ffn.ffn_down"
+# # "model.layers.2%0":                              "attn_blocks.2"
+
+# # "model.layers.3.self_attn.q_proj":           "attn_blocks.3.attn.attn_q"
+# # "model.layers.3.self_attn.k_proj":           "attn_blocks.3.attn.attn_k"
+# # "model.layers.3.self_attn.v_proj":           "attn_blocks.3.attn.attn_v"
+# # "model.layers.3.post_attention_layernorm":   "attn_blocks.3.ffn.ffn_norm"
+# # "model.layers.3.feed_forward.router":        "attn_blocks.3.ffn.ffn_gate_inp"
+# # "model.layers.3.feed_forward.shared_expert": "attn_blocks.3.ffn.shared_experts"
+# # "model.layers.3%0": "attn_blocks.3"
+
+# # "lm_head": "output_lm_head"

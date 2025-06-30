@@ -26,12 +26,12 @@ class Llama4Test(TempDirTestBase):
         super().setUp()
         torch.random.manual_seed(12345)
 
-    @pytest.mark.xfail(
-        is_mi300x,
-        raises=TypeError,
-        strict=False,
-        reason="argument of type 'NoneType' is not iterable",
-    )
+    # @pytest.mark.xfail(
+    #     is_mi300x,
+    #     raises=TypeError,
+    #     strict=False,
+    #     reason="argument of type 'NoneType' is not iterable",
+    # )
     def testCompareToyEagerVsHuggingFace(self):
         dtype = torch.float32
         torch.set_printoptions(
@@ -70,6 +70,11 @@ class Llama4Test(TempDirTestBase):
             mask=hf_2d_attention_mask, model=model
         )
 
+        from sharktank.utils.patching import SaveModuleResultTensorsPatch
+
+        hf_intermediates_saver = SaveModuleResultTensorsPatch(with_before_forward=True)
+        hf_intermediates_saver.patch_child_modules(hf_model)
+
         @torch.compiler.disable(recursive=True)
         def run_hf_model():
             return hf_model(
@@ -86,11 +91,20 @@ class Llama4Test(TempDirTestBase):
             start=0, end=input_ids.numel() // config.block_seq_stride, dtype=torch.long
         ).view(batch_size, batch_seq_len // config.block_seq_stride)
 
+        intermediates_saver = SaveModuleResultTensorsPatch(with_before_forward=True)
+        intermediates_saver.patch_child_modules(model)
         output = model.prefill(
             tokens=input_ids,
             attention_mask=[attention_mask],
             cache_state=kv_cache_state,
             seq_block_ids=[seq_block_ids],
+        )
+
+        hf_intermediates_saver.save_file(
+            "hf_trace_prefill.safetensors", skip_unsupported_dtypes=True
+        )
+        intermediates_saver.save_file(
+            "trace_prefill.safetensors", skip_unsupported_dtypes=True
         )
 
         torch.testing.assert_close(hf_output.logits, output, atol=2e-4, rtol=2e-2)

@@ -224,9 +224,21 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         embedding_batch_mask: Optional[torch.Tensor] = None,
         cache_state: list[torch.Tensor] = None,
     ):
+        import pdb
+
+        pdb.set_trace()
         assert bool(start_index is not None) ^ bool(embedding_batch_mask is not None)
 
         x = self.attn_norm(h)
+
+        if start_positions is None:
+            cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
+        else:
+            cache_position = torch.tensor([2], dtype=torch.long)
+        if start_index is None:
+            start_index = cache_position[0].item()
+        if self.model_arch == "llama4":
+            embedding_batch_mask = None
 
         xq, xk, xv = self.pre_process_attention(
             x, start_index, embedding, embedding_batch_mask
@@ -239,10 +251,7 @@ class PagedLlamaAttentionBlock(ThetaLayer):
         # Use temperature tuning from https://arxiv.org/abs/2501.19399
         # Ken M. Nakanishi - Scalable-Softmax Is Superior for Attention (2025)
         if self.attn_temperature_tuning and not self.use_rope:
-            if start_positions is None:
-                cache_position = torch.arange(0, h.shape[1], dtype=torch.long)
-            else:
-                cache_position = torch.tensor([2], dtype=torch.long)
+
             attn_scales = (
                 torch.log(
                     torch.floor((cache_position.float() + 1.0) / self.floor_scale) + 1.0

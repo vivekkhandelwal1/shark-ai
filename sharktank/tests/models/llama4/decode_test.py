@@ -44,9 +44,9 @@ class Llama4Test(TempDirTestBase):
         hf_state_dict = theta_to_hugging_face_state_dict(theta, config)
         hf_model.load_state_dict(hf_state_dict)
 
-        import pdb
+        # import pdb
 
-        pdb.set_trace()
+        # pdb.set_trace()
 
         batch_size = 41
         batch_seq_len = config.hp.context_length
@@ -120,6 +120,8 @@ class Llama4Test(TempDirTestBase):
                 cache_position=torch.tensor([2], dtype=torch.long),
             )
 
+        # import pdb
+        # pdb.set_trace()
         hf_decode_output = run_hf_model_decode()
 
         intermediates_saver = SaveModuleResultTensorsPatch(with_before_forward=True)
@@ -133,9 +135,11 @@ class Llama4Test(TempDirTestBase):
         )
 
         hf_intermediates_saver.save_file(
-            "hf_trace.safetensors", skip_unsupported_dtypes=True
+            "hf_trace_llama4_toy_decode.safetensors", skip_unsupported_dtypes=True
         )
-        intermediates_saver.save_file("trace.safetensors", skip_unsupported_dtypes=True)
+        intermediates_saver.save_file(
+            "trace_llama4_toy_decode.safetensors", skip_unsupported_dtypes=True
+        )
 
         torch.testing.assert_close(
             hf_decode_output.logits, decode_output, atol=2e-4, rtol=2e-2

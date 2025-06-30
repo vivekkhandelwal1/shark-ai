@@ -160,6 +160,8 @@ class RotaryEmbeddingLayer(BaseLayer):
         start_index: int,
         rotary_embed_table: Optional[torch.Tensor],
     ):
+        # import pdb
+        # pdb.set_trace()
         # freqs_cis shape: max_sl, dim
         # xq_, xk_ shape: bs, sl, _, dim
         xt_ = xt
@@ -167,10 +169,10 @@ class RotaryEmbeddingLayer(BaseLayer):
 
         if self.model_arch == "llama4":
             freqs_cis_real = rotary_embed_table[0][
-                :, : rotary_embed_table[0].shape[1] // 2
+                start_index : start_index + sl, : rotary_embed_table[0].shape[1] // 2
             ]
             freqs_cis_imag = rotary_embed_table[1][
-                :, : rotary_embed_table[0].shape[1] // 2
+                start_index : start_index + sl, : rotary_embed_table[0].shape[1] // 2
             ]
             # TODO: don't use complex numbers as the compiler does better without them.
             freqs_cis = torch.view_as_complex(

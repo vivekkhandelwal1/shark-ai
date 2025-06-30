@@ -1,0 +1,266 @@
+# hf_trace.safetensors
+# %logits: shape=(41, 1, 19), dtype=torch.float32
+.arg%attention_mask: shape=(41, 1), dtype=torch.int64
+.arg%cache_position: shape=(1,), dtype=torch.int64
+.arg%input_ids: shape=(41, 1), dtype=torch.int64
+lm_head: shape=(41, 1, 19), dtype=torch.float32
+lm_head.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model%last_hidden_state: shape=(41, 1, 160), dtype=torch.float32
+model.arg%attention_mask: shape=(41, 1), dtype=torch.int64
+model.arg%cache_position: shape=(1,), dtype=torch.int64
+model.arg%input_ids: shape=(41, 1), dtype=torch.int64
+model.embed_tokens: shape=(41, 1, 160), dtype=torch.float32
+model.embed_tokens.arg%0: shape=(41, 1), dtype=torch.int64
+model.layers.0%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.bool
+model.layers.0.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.0.arg%chunk_causal_mask: shape=(41, 1, 1, 37), dtype=torch.bool
+model.layers.0.arg%position_ids: shape=(1, 1), dtype=torch.int64
+model.layers.0.feed_forward: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.feed_forward.activation_fn: shape=(41, 1, 23), dtype=torch.float32
+model.layers.0.feed_forward.activation_fn.arg%0: shape=(41, 1, 23), dtype=torch.float32
+model.layers.0.feed_forward.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.feed_forward.down_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.feed_forward.down_proj.arg%0: shape=(41, 1, 23), dtype=torch.float32
+model.layers.0.feed_forward.gate_proj: shape=(41, 1, 23), dtype=torch.float32
+model.layers.0.feed_forward.gate_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.feed_forward.up_proj: shape=(41, 1, 23), dtype=torch.float32
+model.layers.0.feed_forward.up_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.input_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.input_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.post_attention_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.post_attention_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn.arg%attention_mask: shape=(41, 1, 1, 37), dtype=torch.bool
+model.layers.0.self_attn.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.0.self_attn.arg%hidden_states: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn.k_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.0.self_attn.k_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn.o_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn.o_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn.q_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn.q_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.0.self_attn.qk_norm#0: shape=(41, 1, 20, 8), dtype=torch.float32
+model.layers.0.self_attn.qk_norm#1: shape=(41, 1, 4, 8), dtype=torch.float32
+model.layers.0.self_attn.qk_norm.arg%0#0: shape=(41, 1, 20, 8), dtype=torch.float32
+model.layers.0.self_attn.qk_norm.arg%0#1: shape=(41, 1, 4, 8), dtype=torch.float32
+model.layers.0.self_attn.v_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.0.self_attn.v_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.bool
+model.layers.1.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.1.arg%chunk_causal_mask: shape=(41, 1, 1, 37), dtype=torch.bool
+model.layers.1.arg%position_ids: shape=(1, 1), dtype=torch.int64
+model.layers.1.feed_forward%0: shape=(41, 160), dtype=torch.float32
+model.layers.1.feed_forward%1: shape=(3, 41), dtype=torch.float32
+model.layers.1.feed_forward.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.feed_forward.experts: shape=(123, 160), dtype=torch.float32
+model.layers.1.feed_forward.experts.act_fn: shape=(3, 41, 29), dtype=torch.float32
+model.layers.1.feed_forward.experts.act_fn.arg%0: shape=(3, 41, 29), dtype=torch.float32
+model.layers.1.feed_forward.experts.arg%0: shape=(123, 160), dtype=torch.float32
+model.layers.1.feed_forward.router: shape=(41, 3), dtype=torch.float32
+model.layers.1.feed_forward.router.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert: shape=(41, 160), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.activation_fn: shape=(41, 29), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.activation_fn.arg%0: shape=(41, 29), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.down_proj: shape=(41, 160), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.down_proj.arg%0: shape=(41, 29), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.gate_proj: shape=(41, 29), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.gate_proj.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.up_proj: shape=(41, 29), dtype=torch.float32
+model.layers.1.feed_forward.shared_expert.up_proj.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.1.input_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.input_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.post_attention_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.post_attention_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn.arg%attention_mask: shape=(41, 1, 1, 37), dtype=torch.bool
+model.layers.1.self_attn.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.1.self_attn.arg%hidden_states: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn.k_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.1.self_attn.k_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn.o_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn.o_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn.q_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn.q_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.1.self_attn.qk_norm#0: shape=(41, 1, 20, 8), dtype=torch.float32
+model.layers.1.self_attn.qk_norm#1: shape=(41, 1, 4, 8), dtype=torch.float32
+model.layers.1.self_attn.qk_norm.arg%0#0: shape=(41, 1, 20, 8), dtype=torch.float32
+model.layers.1.self_attn.qk_norm.arg%0#1: shape=(41, 1, 4, 8), dtype=torch.float32
+model.layers.1.self_attn.v_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.1.self_attn.v_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.bool
+model.layers.2.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.2.arg%chunk_causal_mask: shape=(41, 1, 1, 37), dtype=torch.bool
+model.layers.2.arg%position_ids: shape=(1, 1), dtype=torch.int64
+model.layers.2.feed_forward: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.feed_forward.activation_fn: shape=(41, 1, 23), dtype=torch.float32
+model.layers.2.feed_forward.activation_fn.arg%0: shape=(41, 1, 23), dtype=torch.float32
+model.layers.2.feed_forward.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.feed_forward.down_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.feed_forward.down_proj.arg%0: shape=(41, 1, 23), dtype=torch.float32
+model.layers.2.feed_forward.gate_proj: shape=(41, 1, 23), dtype=torch.float32
+model.layers.2.feed_forward.gate_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.feed_forward.up_proj: shape=(41, 1, 23), dtype=torch.float32
+model.layers.2.feed_forward.up_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.input_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.input_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.post_attention_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.post_attention_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn.arg%attention_mask: shape=(41, 1, 1, 37), dtype=torch.bool
+model.layers.2.self_attn.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.2.self_attn.arg%hidden_states: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn.k_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.2.self_attn.k_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn.o_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn.o_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn.q_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn.q_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.2.self_attn.qk_norm#0: shape=(41, 1, 20, 8), dtype=torch.float32
+model.layers.2.self_attn.qk_norm#1: shape=(41, 1, 4, 8), dtype=torch.float32
+model.layers.2.self_attn.qk_norm.arg%0#0: shape=(41, 1, 20, 8), dtype=torch.float32
+model.layers.2.self_attn.qk_norm.arg%0#1: shape=(41, 1, 4, 8), dtype=torch.float32
+model.layers.2.self_attn.v_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.2.self_attn.v_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.bool
+model.layers.3.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.3.arg%chunk_causal_mask: shape=(41, 1, 1, 37), dtype=torch.bool
+model.layers.3.arg%position_ids: shape=(1, 1), dtype=torch.int64
+model.layers.3.feed_forward%0: shape=(41, 160), dtype=torch.float32
+model.layers.3.feed_forward%1: shape=(3, 41), dtype=torch.float32
+model.layers.3.feed_forward.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.feed_forward.experts: shape=(123, 160), dtype=torch.float32
+model.layers.3.feed_forward.experts.act_fn: shape=(3, 41, 29), dtype=torch.float32
+model.layers.3.feed_forward.experts.act_fn.arg%0: shape=(3, 41, 29), dtype=torch.float32
+model.layers.3.feed_forward.experts.arg%0: shape=(123, 160), dtype=torch.float32
+model.layers.3.feed_forward.router: shape=(41, 3), dtype=torch.float32
+model.layers.3.feed_forward.router.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert: shape=(41, 160), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.activation_fn: shape=(41, 29), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.activation_fn.arg%0: shape=(41, 29), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.down_proj: shape=(41, 160), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.down_proj.arg%0: shape=(41, 29), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.gate_proj: shape=(41, 29), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.gate_proj.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.up_proj: shape=(41, 29), dtype=torch.float32
+model.layers.3.feed_forward.shared_expert.up_proj.arg%0: shape=(41, 160), dtype=torch.float32
+model.layers.3.input_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.input_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.post_attention_layernorm: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.post_attention_layernorm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.bool
+model.layers.3.self_attn.arg%cache_position: shape=(1,), dtype=torch.int64
+model.layers.3.self_attn.arg%hidden_states: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn.k_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.3.self_attn.k_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn.o_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn.o_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn.q_proj: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn.q_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.layers.3.self_attn.v_proj: shape=(41, 1, 32), dtype=torch.float32
+model.layers.3.self_attn.v_proj.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.norm: shape=(41, 1, 160), dtype=torch.float32
+model.norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.rotary_emb.arg%0: shape=(41, 1, 160), dtype=torch.float32
+model.rotary_emb.arg%1: shape=(1, 1), dtype=torch.int64
+
+# (Pdb) hf_model
+# Llama4ForCausalLM(
+#   (model): Llama4TextModel(
+#     (embed_tokens): Embedding(19, 160)
+#     (layers): ModuleList(
+#       (0): Llama4TextDecoderLayer(
+#         (self_attn): Llama4TextAttention(
+#           (q_proj): Linear(in_features=160, out_features=160, bias=False)
+#           (k_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (v_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (o_proj): Linear(in_features=160, out_features=160, bias=False)
+#           (qk_norm): Llama4TextL2Norm(eps=0.01)
+#         )
+#         (feed_forward): Llama4TextMLP(
+#           (gate_proj): Linear(in_features=160, out_features=23, bias=False)
+#           (up_proj): Linear(in_features=160, out_features=23, bias=False)
+#           (down_proj): Linear(in_features=23, out_features=160, bias=False)
+#           (activation_fn): SiLU()
+#         )
+#         (input_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#         (post_attention_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#       )
+#       (1): Llama4TextDecoderLayer(
+#         (self_attn): Llama4TextAttention(
+#           (q_proj): Linear(in_features=160, out_features=160, bias=False)
+#           (k_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (v_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (o_proj): Linear(in_features=160, out_features=160, bias=False)
+#           (qk_norm): Llama4TextL2Norm(eps=0.01)
+#         )
+#         (feed_forward): Llama4TextMoe(
+#           (experts): Llama4TextExperts(
+#             (act_fn): SiLU()
+#           )
+#           (router): Linear(in_features=160, out_features=3, bias=False)
+#           (shared_expert): Llama4TextMLP(
+#             (gate_proj): Linear(in_features=160, out_features=29, bias=False)
+#             (up_proj): Linear(in_features=160, out_features=29, bias=False)
+#             (down_proj): Linear(in_features=29, out_features=160, bias=False)
+#             (activation_fn): SiLU()
+#           )
+#         )
+#         (input_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#         (post_attention_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#       )
+#       (2): Llama4TextDecoderLayer(
+#         (self_attn): Llama4TextAttention(
+#           (q_proj): Linear(in_features=160, out_features=160, bias=False)
+#           (k_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (v_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (o_proj): Linear(in_features=160, out_features=160, bias=False)
+#           (qk_norm): Llama4TextL2Norm(eps=0.01)
+#         )
+#         (feed_forward): Llama4TextMLP(
+#           (gate_proj): Linear(in_features=160, out_features=23, bias=False)
+#           (up_proj): Linear(in_features=160, out_features=23, bias=False)
+#           (down_proj): Linear(in_features=23, out_features=160, bias=False)
+#           (activation_fn): SiLU()
+#         )
+#         (input_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#         (post_attention_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#       )
+#       (3): Llama4TextDecoderLayer(
+#         (self_attn): Llama4TextAttention(
+#           (q_proj): Linear(in_features=160, out_features=160, bias=False)
+#           (k_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (v_proj): Linear(in_features=160, out_features=32, bias=False)
+#           (o_proj): Linear(in_features=160, out_features=160, bias=False)
+#         )
+#         (feed_forward): Llama4TextMoe(
+#           (experts): Llama4TextExperts(
+#             (act_fn): SiLU()
+#           )
+#           (router): Linear(in_features=160, out_features=3, bias=False)
+#           (shared_expert): Llama4TextMLP(
+#             (gate_proj): Linear(in_features=160, out_features=29, bias=False)
+#             (up_proj): Linear(in_features=160, out_features=29, bias=False)
+#             (down_proj): Linear(in_features=29, out_features=160, bias=False)
+#             (activation_fn): SiLU()
+#           )
+#         )
+#         (input_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#         (post_attention_layernorm): Llama4TextRMSNorm((160,), eps=0.01)
+#       )
+#     )
+#     (norm): Llama4TextRMSNorm((160,), eps=0.01)
+#     (rotary_emb): Llama4TextRotaryEmbedding()
+#   )
+#   (lm_head): Linear(in_features=160, out_features=19, bias=False)
+# )

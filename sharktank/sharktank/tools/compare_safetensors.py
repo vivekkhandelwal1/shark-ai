@@ -141,6 +141,12 @@ def main(argv):
     parser = cli.create_parser()
     parser.add_argument("--dir", type=Path, required=True, help="Output directory")
     parser.add_argument(
+        "expected_path", type=Path, help="Path to expected safetensors file"
+    )
+    parser.add_argument(
+        "actual_path", type=Path, help="Path to actual safetensors file"
+    )
+    parser.add_argument(
         "--keys_map_path",
         type=Path,
         default=None,
@@ -148,12 +154,6 @@ def main(argv):
             "Path to JSON or YAML file that maps names of expected tensors to names of "
             'actual tensors. E.g. {"a": "b", "c": "d"}'
         ),
-    )
-    parser.add_argument(
-        "expected_path", type=Path, help="Path to expected safetensors file"
-    )
-    parser.add_argument(
-        "actual_path", type=Path, help="Path to actual safetensors file"
     )
     args = cli.parse(parser, args=argv)
 

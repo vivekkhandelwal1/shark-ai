@@ -277,6 +277,8 @@ class PagedLlmModelV1(BaseCausalLMModel):
                 self.trace_tensor(f"llama.attn_block.{block_idx}.input", h)
             # TODO: Hacky, shouldn't need to read info out of self.cache
             pipeline = self.cache.block_to_pipeline_map[block_idx]
+            # import pdb
+            # pdb.set_trace()
             h = block(  # TODO: Should we index into attention_mask and cache here?
                 h,
                 start_positions=start_positions[pipeline],

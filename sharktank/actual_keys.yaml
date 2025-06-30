@@ -1,0 +1,281 @@
+# trace.safetensors
+attn_blocks.0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.0.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.0.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.0.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.0.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.0.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.0.attn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.0.attn.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.0.attn.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.0.attn.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.0.attn.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.0.attn.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.0.attn.attn_k: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.0.attn.attn_k.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_output: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_output.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_output_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_output_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_q: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_q.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.attn_v: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.0.attn.attn_v.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.attn.qk_norm#0: shape=(41, 1, 20, 8), dtype=torch.float32
+attn_blocks.0.attn.qk_norm#1: shape=(41, 1, 4, 8), dtype=torch.float32
+attn_blocks.0.attn.qk_norm.arg%0#0: shape=(41, 1, 20, 8), dtype=torch.float32
+attn_blocks.0.attn.qk_norm.arg%0#1: shape=(41, 1, 4, 8), dtype=torch.float32
+attn_blocks.0.ffn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.ffn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.ffn.ffn_down: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.ffn.ffn_down.arg%0: shape=(41, 1, 23), dtype=torch.float32
+attn_blocks.0.ffn.ffn_gate: shape=(41, 1, 23), dtype=torch.float32
+attn_blocks.0.ffn.ffn_gate.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.ffn.ffn_up: shape=(41, 1, 23), dtype=torch.float32
+attn_blocks.0.ffn.ffn_up.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.ffn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.0.ffn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.1.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.1.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.1.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.1.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.1.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.1.attn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.1.attn.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.1.attn.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.1.attn.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.1.attn.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.1.attn.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.1.attn.attn_k: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.1.attn.attn_k.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_output: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_output.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_output_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_output_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_q: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_q.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.attn_v: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.1.attn.attn_v.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.attn.qk_norm#0: shape=(41, 1, 20, 8), dtype=torch.float32
+attn_blocks.1.attn.qk_norm#1: shape=(41, 1, 4, 8), dtype=torch.float32
+attn_blocks.1.attn.qk_norm.arg%0#0: shape=(41, 1, 20, 8), dtype=torch.float32
+attn_blocks.1.attn.qk_norm.arg%0#1: shape=(41, 1, 4, 8), dtype=torch.float32
+attn_blocks.1.ffn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.ffn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.ffn.ffn_gate_inp: shape=(41, 3), dtype=torch.float32
+attn_blocks.1.ffn.ffn_gate_inp.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn.layer_output_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.ffn.layer_output_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.ffn.routed_experts: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn.routed_experts.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn.routed_experts.arg%1: shape=(41, 2), dtype=torch.int64
+attn_blocks.1.ffn.routed_experts.arg%2: shape=(41, 2), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts.ffn_down: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts.ffn_down.arg%0: shape=(41, 29), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts.ffn_gate: shape=(41, 29), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts.ffn_gate.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts.ffn_up: shape=(41, 29), dtype=torch.float32
+attn_blocks.1.ffn.shared_experts.ffn_up.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.1.ffn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.1.ffn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.2.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.2.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.2.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.2.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.2.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.2.attn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.2.attn.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.2.attn.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.2.attn.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.2.attn.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.2.attn.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.2.attn.attn_k: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.2.attn.attn_k.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_output: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_output.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_output_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_output_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_q: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_q.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.attn_v: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.2.attn.attn_v.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.attn.qk_norm#0: shape=(41, 1, 20, 8), dtype=torch.float32
+attn_blocks.2.attn.qk_norm#1: shape=(41, 1, 4, 8), dtype=torch.float32
+attn_blocks.2.attn.qk_norm.arg%0#0: shape=(41, 1, 20, 8), dtype=torch.float32
+attn_blocks.2.attn.qk_norm.arg%0#1: shape=(41, 1, 4, 8), dtype=torch.float32
+attn_blocks.2.ffn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.ffn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.ffn.ffn_down: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.ffn.ffn_down.arg%0: shape=(41, 1, 23), dtype=torch.float32
+attn_blocks.2.ffn.ffn_gate: shape=(41, 1, 23), dtype=torch.float32
+attn_blocks.2.ffn.ffn_gate.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.ffn.ffn_up: shape=(41, 1, 23), dtype=torch.float32
+attn_blocks.2.ffn.ffn_up.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.ffn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.2.ffn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.3.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.3.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.3.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.3.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.3.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.3.attn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.arg%attention_mask: shape=(41, 1, 1, 143), dtype=torch.float32
+attn_blocks.3.attn.arg%cache_state%0: shape=(451, 3328), dtype=torch.float32
+attn_blocks.3.attn.arg%embedding_batch_mask%0: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.3.attn.arg%embedding_batch_mask%1: shape=(41, 1, 1, 8), dtype=torch.float32
+attn_blocks.3.attn.arg%seq_block_ids: shape=(41, 11), dtype=torch.int64
+attn_blocks.3.attn.arg%start_positions: shape=(41,), dtype=torch.int64
+attn_blocks.3.attn.attn_k: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.3.attn.attn_k.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_output: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_output.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_output_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_output_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_q: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_q.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.attn.attn_v: shape=(41, 1, 32), dtype=torch.float32
+attn_blocks.3.attn.attn_v.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.ffn: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.ffn.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.ffn.ffn_gate_inp: shape=(41, 3), dtype=torch.float32
+attn_blocks.3.ffn.ffn_gate_inp.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn.layer_output_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.ffn.layer_output_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.ffn.routed_experts: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn.routed_experts.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn.routed_experts.arg%1: shape=(41, 2), dtype=torch.int64
+attn_blocks.3.ffn.routed_experts.arg%2: shape=(41, 2), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts.ffn_down: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts.ffn_down.arg%0: shape=(41, 29), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts.ffn_gate: shape=(41, 29), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts.ffn_gate.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts.ffn_up: shape=(41, 29), dtype=torch.float32
+attn_blocks.3.ffn.shared_experts.ffn_up.arg%0: shape=(41, 160), dtype=torch.float32
+attn_blocks.3.ffn_norm: shape=(41, 1, 160), dtype=torch.float32
+attn_blocks.3.ffn_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+output_lm_head: shape=(41, 1, 19), dtype=torch.float32
+output_lm_head.arg%0: shape=(41, 1, 160), dtype=torch.float32
+output_norm: shape=(41, 1, 160), dtype=torch.float32
+output_norm.arg%0: shape=(41, 1, 160), dtype=torch.float32
+token_embedding: shape=(41, 1, 160), dtype=torch.float32
+token_embedding.arg%0: shape=(41, 1), dtype=torch.int64
+
+
+# (Pdb) model
+# PagedLlmModelV1(
+#   (token_embedding): TokenEmbeddingLayer()
+#   (attention_embedding): ModuleList(
+#     (0): RotaryEmbeddingLayer()
+#   )
+#   (output_norm): RMSNormLayer()
+#   (output_lm_head): LinearLayer()
+#   (attn_blocks): ModuleList(
+#     (0): AttentionFFNBlock(
+#       (attn): PagedLlamaAttentionBlock(
+#         (attn_q): LinearLayer()
+#         (attn_k): LinearLayer()
+#         (attn_v): LinearLayer()
+#         (qk_norm): L2Norm()
+#         (attn_norm): RMSNormLayer()
+#         (attn_output): LinearLayer()
+#         (attn_output_norm): Identity()
+#       )
+#       (ffn_norm): RMSNormLayer()
+#       (ffn): FFN(
+#         (ffn_gate): LinearLayer()
+#         (ffn_up): LinearLayer()
+#         (ffn_down): LinearLayer()
+#       )
+#     )
+#     (1): AttentionFFNBlock(
+#       (attn): PagedLlamaAttentionBlock(
+#         (attn_q): LinearLayer()
+#         (attn_k): LinearLayer()
+#         (attn_v): LinearLayer()
+#         (qk_norm): L2Norm()
+#         (attn_norm): RMSNormLayer()
+#         (attn_output): LinearLayer()
+#         (attn_output_norm): Identity()
+#       )
+#       (ffn_norm): RMSNormLayer()
+#       (ffn): MoeBlock(
+#         (layer_output_norm): Identity()
+#         (ffn_gate_inp): LinearLayer()
+#         (routed_experts): PreGatherFFNMOE()
+#         (shared_experts): FFN(
+#           (ffn_gate): LinearLayer()
+#           (ffn_up): LinearLayer()
+#           (ffn_down): LinearLayer()
+#         )
+#       )
+#     )
+#     (2): AttentionFFNBlock(
+#       (attn): PagedLlamaAttentionBlock(
+#         (attn_q): LinearLayer()
+#         (attn_k): LinearLayer()
+#         (attn_v): LinearLayer()
+#         (qk_norm): L2Norm()
+#         (attn_norm): RMSNormLayer()
+#         (attn_output): LinearLayer()
+#         (attn_output_norm): Identity()
+#       )
+#       (ffn_norm): RMSNormLayer()
+#       (ffn): FFN(
+#         (ffn_gate): LinearLayer()
+#         (ffn_up): LinearLayer()
+#         (ffn_down): LinearLayer()
+#       )
+#     )
+#     (3): AttentionFFNBlock(
+#       (attn): PagedLlamaAttentionBlock(
+#         (attn_q): LinearLayer()
+#         (attn_k): LinearLayer()
+#         (attn_v): LinearLayer()
+#         (attn_norm): RMSNormLayer()
+#         (attn_output): LinearLayer()
+#         (attn_output_norm): Identity()
+#       )
+#       (ffn_norm): RMSNormLayer()
+#       (ffn): MoeBlock(
+#         (layer_output_norm): Identity()
+#         (ffn_gate_inp): LinearLayer()
+#         (routed_experts): PreGatherFFNMOE()
+#         (shared_experts): FFN(
+#           (ffn_gate): LinearLayer()
+#           (ffn_up): LinearLayer()
+#           (ffn_down): LinearLayer()
+#         )
+#       )
+#     )
+#   )
+# )
