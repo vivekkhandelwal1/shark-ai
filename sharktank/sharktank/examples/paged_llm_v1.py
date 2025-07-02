@@ -55,12 +55,13 @@ def main(cli_args: list[str] | None = None):
     config.pipeline_parallelism_size = args.pipeline_parallelism_size
     config.fake_quant = args.fake_quant
 
-    if args.tensor_parallelism_size != config.tensor_parallelism_size:
-        assert (
-            config.tensor_parallelism_size == 1
-        ), "Can't tensor-shard theta that is already sharded"
-        config.tensor_parallelism_size = args.tensor_parallelism_size
-        dataset.root_theta = shard_theta(dataset.root_theta, config)
+    # if args.tensor_parallelism_size is not None:
+    #     if args.tensor_parallelism_size != config.tensor_parallelism_size:
+    #         assert (
+    #             config.tensor_parallelism_size == 1
+    #         ), "Can't tensor-shard theta that is already sharded"
+    #         config.tensor_parallelism_size = args.tensor_parallelism_size
+    #         dataset.root_theta = shard_theta(dataset.root_theta, config)
 
     model = PagedLlmModelV1(dataset.root_theta, config)
 

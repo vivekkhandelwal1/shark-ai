@@ -244,6 +244,12 @@ class Batch:
         trace_tensor("prefill.token_ids", self.token_ids)
         trace_tensor("prefill.seq_block_ids", seq_block_ids)
 
+        file_path = Path(self.dump_path, "prefill_token_ids.npy")
+        np.save(file_path, token_ids.cpu().numpy())
+
+        file_path = Path(self.dump_path, "prefill_seq_block_ids.npy")
+        np.save(file_path, seq_block_ids.cpu().numpy())
+
         attention_mask = None
         if self.use_attention_mask:
             attention_mask = model.attention_mask(
@@ -296,6 +302,10 @@ class Batch:
             self.dump_args(
                 phase="prefill", arg_name="cache_state", arg=self.cache_state
             )
+            print(f"\nPrefill args saved to {Path(self.dump_path)}\n")
+            import sys
+            sys.exit()
+
 
         self.prefill_logits = model.prefill(
             token_ids,
